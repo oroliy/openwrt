@@ -1,0 +1,11 @@
+#!/bin/sh /etc/rc.common
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+START=11
+
+start() {
+	# procd defaults to a 30-second timeout and a 5-second keepalive. The
+	# S5P6818 hardware tops out at 10 seconds, so configure a safe margin on
+	# every boot, including boots from a persistent root filesystem.
+	ubus call system watchdog '{"timeout":10,"frequency":2}' >/dev/null
+}
