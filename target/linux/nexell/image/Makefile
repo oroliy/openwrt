@@ -5,6 +5,6 @@
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/image.mk
 
-include ./s5p6818.mk
+include ./$(SUBTARGET).mk
 
 $(eval $(call BuildImage))
