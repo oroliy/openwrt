@@ -5,8 +5,11 @@
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/image.mk
 
+KERNEL_PARTSIZE=$(if $(CONFIG_TARGET_KERNEL_PARTSIZE),$(CONFIG_TARGET_KERNEL_PARTSIZE),64)
+ROOTFS_PARTSIZE=$(if $(CONFIG_TARGET_ROOTFS_PARTSIZE),$(CONFIG_TARGET_ROOTFS_PARTSIZE),256)
+
 FAT32_BLOCK_SIZE=1024
-FAT32_BLOCKS=$(shell echo $$(($(CONFIG_TARGET_KERNEL_PARTSIZE)*1024*1024/$(FAT32_BLOCK_SIZE))))
+FAT32_BLOCKS=$(shell echo $$(($(KERNEL_PARTSIZE)*1024*1024/$(FAT32_BLOCK_SIZE))))
 
 ### Image scripts ###
 define Build/boot-common
@@ -21,8 +24,8 @@ define Build/nexell-sdcard
 	./gen_nexell_disk_img.sh $@ \
 		$@.boot \
 		$(IMAGE_ROOTFS) \
-		$(CONFIG_TARGET_KERNEL_PARTSIZE) \
-		$(CONFIG_TARGET_ROOTFS_PARTSIZE) \
+		$(KERNEL_PARTSIZE) \
+		$(ROOTFS_PARTSIZE) \
 		$(STAGING_DIR_IMAGE)/x6818-firmware-sd.img
 	rm -rf $@.boot
 endef
@@ -32,8 +35,8 @@ define Build/nexell-emmc
 	./gen_nexell_disk_img.sh $@ \
 		$@.boot \
 		$(IMAGE_ROOTFS) \
-		$(CONFIG_TARGET_KERNEL_PARTSIZE) \
-		$(CONFIG_TARGET_ROOTFS_PARTSIZE) \
+		$(KERNEL_PARTSIZE) \
+		$(ROOTFS_PARTSIZE) \
 		$(STAGING_DIR_IMAGE)/x6818-firmware-emmc.img
 	rm -rf $@.boot
 endef
