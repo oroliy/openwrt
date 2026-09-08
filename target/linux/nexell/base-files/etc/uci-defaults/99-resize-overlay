@@ -1,0 +1,6 @@
+#!/bin/sh
+if [ -b /dev/loop0 ] && command -v resize2fs >/dev/null 2>&1; then
+    logger -t "resize-overlay" "Expanding /dev/loop0 overlay filesystem to full partition size..."
+    resize2fs /dev/loop0
+    logger -t "resize-overlay" "Resize complete."
+fi

@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# Set luci_statistics hostname to prevent collectd assertion failure
+if [ -f /etc/config/luci_statistics ]; then
+	uci -q get luci_statistics.collectd.Hostname >/dev/null || {
+		uci set luci_statistics.collectd.Hostname='OpenWrt'
+		uci commit luci_statistics
+	}
+fi
+
+# Remove stale lua_prefix in uhttpd since LuCI is ucode-based
+if [ -f /etc/config/uhttpd ]; then
+	uci -q del_list uhttpd.main.lua_prefix='/cgi-bin/luci=/usr/lib/lua/luci/sgi/uhttpd.lua'
+	uci commit uhttpd
+fi

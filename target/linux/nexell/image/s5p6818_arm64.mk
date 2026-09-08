@@ -20,13 +20,13 @@ endef
 define Device/nexell_x6818_arm64
   DEVICE_VENDOR := Nexell
   DEVICE_MODEL := x6818 (AArch64)
-  DEVICE_DTS := s5p6818-x6818
+  DEVICE_DTS := s5p6818-x6818-nexell-timer
   SUPPORTED_DEVICES := nexell,x6818
   DEVICE_PACKAGES := nexell-firmware
   ARTIFACTS := Image Image-initramfs fit-initramfs dtb
   ARTIFACT/Image := copy-file $(KDIR)/Image
   ARTIFACT/Image-initramfs := copy-file $(KDIR)/Image-initramfs
-  ARTIFACT/fit-initramfs := copy-file $(KDIR)/Image-initramfs | fit none $(KDIR)/image-s5p6818-x6818.dtb | pad-to 512
-  ARTIFACT/dtb := copy-file $(KDIR)/image-s5p6818-x6818.dtb
+  ARTIFACT/fit-initramfs := copy-file $(KDIR)/Image-initramfs | fit none $(KDIR)/image-s5p6818-x6818-nexell-timer.dtb | pad-to 512
+  ARTIFACT/dtb := copy-file $(KDIR)/image-s5p6818-x6818-nexell-timer.dtb
 endef
 TARGET_DEVICES += nexell_x6818_arm64
