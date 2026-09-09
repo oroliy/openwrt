@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Copyright (C) 2026 x6818 port
+# Move restored sysupgrade configuration from boot partition (p1) to root.
+
+move_config() {
+	local partdev p_node
+	local mnt_dir="/tmp/sysupgrade_boot"
+
+	[ -f /lib/upgrade/common.sh ] && . /lib/upgrade/common.sh
+
+	if export_bootdevice && export_partdevice partdev 1; then
+		case "$partdev" in
+			/*) p_node="$partdev" ;;
+			*)  p_node="/dev/$partdev" ;;
+		esac
+		mkdir -p "$mnt_dir"
+		if mount -t vfat -o rw,noatime "$p_node" "$mnt_dir" 2>/dev/null || mount -o rw,noatime "$p_node" "$mnt_dir"; then
+			if [ -f "$mnt_dir/${BACKUP_FILE:-sysupgrade.tgz}" ]; then
+				echo "Restoring configuration archive from boot partition ($p_node)..."
+				mv -f "$mnt_dir/${BACKUP_FILE:-sysupgrade.tgz}" /
+				sync
+			fi
+			umount "$mnt_dir"
+			rmdir "$mnt_dir" 2>/dev/null || true
+		fi
+	fi
+}
+
+boot_hook_add preinit_mount_root move_config

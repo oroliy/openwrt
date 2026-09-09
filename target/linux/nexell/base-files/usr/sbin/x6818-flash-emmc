@@ -1,0 +1,139 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Copyright (C) 2026 x6818 port
+# One-click recovery and eMMC installer for Nexell S5P6818 (x6818).
+#
+# Usage:
+#   x6818-flash-emmc <image_path.img[.gz]> [target_block_dev]
+#
+# Features:
+# - Validates image MBR signature (0x55aa)
+# - Validates NSIH magic (0x4849534e) and enforces eMMC Boot Channel 2
+# - Auto-detects target eMMC device (defaults to /dev/mmcblk0 or candidate eMMC)
+# - Protects running boot media (refuses to overwrite running rootfs disk)
+# - Streams decompression and raw sector-accurate write with fsync
+# - Performs post-write readback verification of MBR and NSIH headers
+
+set -eu
+
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <image.img[.gz]> [target_emmc_dev]" >&2
+    echo "Example: $0 /tmp/openwrt-nexell-s5p6818_arm64-emmc.img.gz" >&2
+    exit 1
+fi
+
+IMAGE="$1"
+TARGET_DEV="${2:-}"
+
+if [ ! -f "$IMAGE" ]; then
+    echo "Error: image file '$IMAGE' not found" >&2
+    exit 1
+fi
+
+# Detect decompression method
+decompress_cat() {
+    local magic
+    magic="$(dd if="$1" bs=2 count=1 2>/dev/null | hexdump -v -n 2 -e '1/1 "%02x"')"
+    case "$magic" in
+        1f8b) zcat "$1" ;;
+        *)    cat "$1" ;;
+    esac
+}
+
+echo "==> Verifying image header and partition structure..."
+# Read first 1024 bytes (MBR + NSIH header)
+header_tmp="$(mktemp -t x6818_hdr.XXXXXX 2>/dev/null || echo "/tmp/x6818_hdr.$$.bin")"
+trap 'rm -f "$header_tmp"' EXIT
+
+decompress_cat "$IMAGE" | dd of="$header_tmp" bs=512 count=2 2>/dev/null
+
+# Check MBR signature at offset 510
+mbr_sig="$(dd if="$header_tmp" bs=1 skip=510 count=2 2>/dev/null | hexdump -v -n 2 -e '1/1 "%02x"')"
+if [ "$mbr_sig" != "55aa" ]; then
+    echo "Error: Image is missing valid MBR signature (got '$mbr_sig', expected '55aa')" >&2
+    exit 1
+fi
+
+# Check NSIH magic at offset 0x1fc of Sector 1 (offset 0x200 + 0x1fc = 0x3fc)
+nsih_magic="$(dd if="$header_tmp" bs=1 skip=1020 count=4 2>/dev/null | hexdump -v -n 4 -e '1/1 "%02x"')"
+if [ "$nsih_magic" != "4e534948" ]; then # little endian 0x4849534e in byte order: 4e 53 49 48
+    echo "Error: Image Sector 1 missing valid NSIH magic (got '$nsih_magic', expected '4e534948')" >&2
+    exit 1
+fi
+
+# Check NSIH channel at offset 0x50 of Sector 1 (offset 0x200 + 0x50 = 0x250)
+# PortNumber for eMMC must be 2.
+nsih_chan="$(dd if="$header_tmp" bs=1 skip=592 count=1 2>/dev/null | hexdump -v -n 1 -e '1/1 "%d"')"
+if [ "$nsih_chan" -ne 2 ]; then
+    echo "Error: Image firmware is targeted for Boot Channel $nsih_chan, NOT eMMC Channel 2!" >&2
+    echo "Refusing to flash SD image (channel 0) to eMMC." >&2
+    exit 1
+fi
+
+echo "Image check OK: Valid MBR, NSIH magic 0x4849534e, eMMC Channel 2 confirmed."
+
+# Determine target device if not specified
+if [ -z "$TARGET_DEV" ]; then
+    # Look for mmcblk0 or mmcblk1
+    for dev in /dev/mmcblk0 /dev/mmcblk1 /dev/mmcblk2; do
+        if [ -b "$dev" ]; then
+            # Exclude currently mounted root disk
+            if grep -q "${dev##*/}p" /proc/mounts 2>/dev/null || grep -q "$dev" /proc/cmdline 2>/dev/null; then
+                continue
+            fi
+            TARGET_DEV="$dev"
+            break
+        fi
+    done
+fi
+
+if [ -z "$TARGET_DEV" ] || { [ ! -b "$TARGET_DEV" ] && [ ! -f "$TARGET_DEV" ]; }; then
+    echo "Error: Could not auto-detect target eMMC device, or specified device '$TARGET_DEV' is invalid" >&2
+    echo "Available block devices:" >&2
+    ls -l /dev/mmcblk* 2>/dev/null || true
+    exit 1
+fi
+
+echo "Target device: $TARGET_DEV"
+
+# Refuse if target device is currently the active root filesystem disk
+root_part="$(awk '$2 == "/" { print $1 }' /proc/mounts 2>/dev/null || true)"
+case "$root_part" in
+    "$TARGET_DEV"*)
+        echo "Error: Target device '$TARGET_DEV' is currently mounted as root ($root_part)!" >&2
+        echo "Refusing to destroy running system." >&2
+        exit 1
+        ;;
+esac
+
+echo "==> Flashing image '$IMAGE' to '$TARGET_DEV'..."
+decompress_cat "$IMAGE" | dd of="$TARGET_DEV" bs=4M conv=fsync status=progress
+
+sync
+echo "==> Verifying written headers on '$TARGET_DEV'..."
+
+# Verify written MBR
+rb_mbr="$(dd if="$TARGET_DEV" bs=1 skip=510 count=2 2>/dev/null | hexdump -v -n 2 -e '1/1 "%02x"')"
+if [ "$rb_mbr" != "55aa" ]; then
+    echo "Error: Post-write MBR verification failed!" >&2
+    exit 1
+fi
+
+# Verify written NSIH magic
+rb_nsih="$(dd if="$TARGET_DEV" bs=1 skip=1020 count=4 2>/dev/null | hexdump -v -n 4 -e '1/1 "%02x"')"
+if [ "$rb_nsih" != "4e534948" ]; then
+    echo "Error: Post-write NSIH magic verification failed!" >&2
+    exit 1
+fi
+
+# Re-read partition table
+if command -v partx >/dev/null 2>&1; then
+    partx -u "$TARGET_DEV" 2>/dev/null || true
+fi
+
+echo "============================================================"
+echo " eMMC installation / recovery complete!"
+echo " MBR signature and eMMC Sector 1 firmware verified OK."
+echo " You may now power off the board, remove the SD card, and reboot."
+echo "============================================================"

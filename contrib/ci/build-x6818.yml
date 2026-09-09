@@ -1,0 +1,78 @@
+name: Build Nexell S5P6818 (x6818) OpenWrt Firmware
+
+on:
+  push:
+    branches:
+      - openwrt-25.12-x6818
+    tags:
+      - 'v*'
+      - 'x6818*'
+  pull_request:
+    branches:
+      - openwrt-25.12-x6818
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build x6818 AArch64 Firmware
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential clang flex bison gawk gcc-multilib g++-multilib \
+            gettext git libncurses5-dev libssl-dev python3-setuptools rsync \
+            swig unzip zlib1g-dev file wget dosfstools mtools libelf-dev
+
+      - name: Run Self-Tests & Target Unit Tests
+        run: |
+          python3 target/linux/nexell/tests/test_disk_image.py
+          python3 target/linux/nexell/tests/test_product_capacity.py
+          sh target/linux/nexell/tests/test_resize_overlay.sh
+          sh target/linux/nexell/tests/test_upgrade.sh
+          sh target/linux/nexell/tests/test_flash_emmc.sh
+          sh scripts/tests/test-check-x6818-config.sh
+          sh scripts/tests/test-check-x6818-feeds.sh
+
+      - name: Update and Install Feeds
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Generate Defconfig
+        run: |
+          cp configs/x6818_arm64.config .config
+          make defconfig
+
+      - name: Download Package Sources
+        run: |
+          make download -j$(nproc)
+
+      - name: Compile Toolchain and Firmware
+        run: |
+          make tools/compile -j$(nproc)
+          make toolchain/compile -j$(nproc)
+          make target/compile -j$(nproc)
+          make package/compile -j$(nproc) || make package/compile -j1 V=s
+          make package/install -j$(nproc)
+          make target/install -j$(nproc)
+
+      - name: Generate Checksums and Manifest
+        run: |
+          cd bin/targets/nexell/s5p6818_arm64
+          sha256sum * > SHA256SUMS || true
+          ls -lh
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-x6818-firmware-${{ github.sha }}
+          path: bin/targets/nexell/s5p6818_arm64/*
+          if-no-files-found: error
