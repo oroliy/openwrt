@@ -1,14 +1,14 @@
-From 7b323677e43fa6e6ca3ad55e3a6d78371b5ff00c Mon Sep 17 00:00:00 2001
+From f5b537337a13a599aa7e4c0de72e58303875ec49 Mon Sep 17 00:00:00 2001
 From: liy <liygfg@gmail.com>
-Date: Sun, 31 Aug 2026 00:00:00 +0800
+Date: Mon, 7 Sep 2026 21:15:49 +0800
 Subject: [PATCH] arm64: nexell: add S5P6818 x6818 product port
 
 Add the AArch64 platform, PSCI device tree, shared ARM/ARM64 driver
-selection, timer fallback, OHCI shutdown fix, and S5P6818-scoped
-queued-lock polling workaround.
+selection, timer fallback, OHCI shutdown fix, watchdog heartbeat support,
+and S5P6818-scoped queued-lock polling workaround.
 
 This patch is generated from the reviewed linux-lts range
-ec13ac219..7b323677e.
+ec13ac219..f5b537337.
 
 Signed-off-by: liy <liygfg@gmail.com>
 ---
@@ -1468,3 +1468,33 @@ index 7d96bed71..3b8a41a1c 100644
  
  	arch_mcs_spin_unlock_contended(&next->locked);
  	pv_kick_node(lock, next);
+
+diff --git a/arch/arm64/include/asm/timex.h b/arch/arm64/include/asm/timex.h
+index cf59ce91b..64b2a755d 100644
+--- a/arch/arm64/include/asm/timex.h
++++ b/arch/arm64/include/asm/timex.h
+@@ -11,7 +11,12 @@
+  * Use the current timer as a cycle counter since this is what we use for
+  * the delay loop.
+  */
++#ifdef CONFIG_NEXELL_TIMER
++#include <linux/nexell_timer.h>
++#define get_cycles()	(nexell_timer_is_ready() ? nexell_timer_read_counter() : arch_timer_read_counter())
++#else
+ #define get_cycles()	arch_timer_read_counter()
++#endif
+ 
+ #include <asm-generic/timex.h>
+ 
+diff --git a/drivers/watchdog/nexell_wdt.c b/drivers/watchdog/nexell_wdt.c
+index 0da26db32..ddece0530 100644
+--- a/drivers/watchdog/nexell_wdt.c
++++ b/drivers/watchdog/nexell_wdt.c
+@@ -295,6 +295,7 @@ static int nexell_wdt_probe(struct platform_device *pdev)
+ 	wdt->wdd.max_timeout = nexell_wdt_max_timeout(wdt);
+ 	if (!wdt->wdd.max_timeout)
+ 		return dev_err_probe(dev, -EINVAL, "watchdog clock is too fast\n");
++	wdt->wdd.max_hw_heartbeat_ms = wdt->wdd.max_timeout * 1000;
+ 
+ 	watchdog_set_drvdata(&wdt->wdd, wdt);
+ 	watchdog_init_timeout(&wdt->wdd, timeout, dev);

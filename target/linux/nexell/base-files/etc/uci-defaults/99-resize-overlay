@@ -1,6 +1,41 @@
 #!/bin/sh
-if [ -b /dev/loop0 ] && command -v resize2fs >/dev/null 2>&1; then
-    logger -t "resize-overlay" "Expanding /dev/loop0 overlay filesystem to full partition size..."
-    resize2fs /dev/loop0
-    logger -t "resize-overlay" "Resize complete."
+
+# This hook only grows an already mounted ext4 overlay filesystem.  Partition
+# growth belongs to image/upgrade tooling and is intentionally not attempted
+# here.
+mounts=${OVERLAY_MOUNTS_FILE:-/proc/mounts}
+mountpoint=${OVERLAY_MOUNTPOINT:-/overlay}
+entry=$(awk -v m="$mountpoint" '$2 == m { print; exit }' "$mounts" 2>/dev/null) || exit 1
+[ -n "$entry" ] || {
+	logger -t resize-overlay "Overlay mount $mountpoint is not ready"
+	exit 1
+}
+
+set -- $entry
+backing=$1
+fstype=$3
+options=$4
+[ "$fstype" = ext4 ] || {
+	logger -t resize-overlay "Skipping $mountpoint: filesystem $fstype is not ext4"
+	exit 1
+}
+case ",$options," in
+	*,rw,*) ;;
+	*) logger -t resize-overlay "Skipping $mountpoint: filesystem is not mounted read-write"; exit 1 ;;
+esac
+test -b "$backing" || {
+	logger -t resize-overlay "Skipping $mountpoint: backing $backing is not a block device"
+	exit 1
+}
+command -v resize2fs >/dev/null 2>&1 || {
+	logger -t resize-overlay "Cannot resize $backing: resize2fs is unavailable"
+	exit 1
+}
+
+logger -t resize-overlay "Growing mounted $fstype filesystem on $backing"
+if resize2fs "$backing"; then
+	logger -t resize-overlay "Resize complete for $backing"
+	exit 0
 fi
+logger -t resize-overlay "Resize failed for $backing"
+exit 1
