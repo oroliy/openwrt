@@ -664,10 +664,11 @@ new file mode 100644
 index 000000000..ca2130718
 --- /dev/null
 +++ b/arch/arm64/configs/x6818_arm64_defconfig
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,48 @@
 +CONFIG_ARCH_NEXELL_S5P6818=y
 +CONFIG_SMP=y
 +CONFIG_NR_CPUS=8
++CONFIG_HOTPLUG_CPU=y
 +CONFIG_COMPAT=y
 +CONFIG_BLK_DEV_INITRD=y
 +CONFIG_DEVTMPFS=y
@@ -695,6 +696,7 @@ index 000000000..ca2130718
 +CONFIG_SCSI=y
 +CONFIG_BLK_DEV_SD=y
 +CONFIG_FB=y
++CONFIG_FB_DEVICE=y
 +CONFIG_FB_SIMPLE=y
 +CONFIG_FRAMEBUFFER_CONSOLE=y
 +CONFIG_VIDEO_NEXELL_S5P6818=y
@@ -716,12 +718,13 @@ new file mode 100644
 index 000000000..f620f78e9
 --- /dev/null
 +++ b/arch/arm64/configs/x6818_arm64_nexell_timer_defconfig
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,51 @@
 +# Experimental fallback target: use the Nexell timer when the architectural
 +# counter is unavailable. The product defconfig remains arch-timer based.
 +CONFIG_ARCH_NEXELL_S5P6818=y
 +CONFIG_SMP=y
 +CONFIG_NR_CPUS=8
++CONFIG_HOTPLUG_CPU=y
 +CONFIG_COMPAT=y
 +CONFIG_BLK_DEV_INITRD=y
 +CONFIG_DEVTMPFS=y
@@ -750,6 +753,7 @@ index 000000000..f620f78e9
 +CONFIG_SCSI=y
 +CONFIG_BLK_DEV_SD=y
 +CONFIG_FB=y
++CONFIG_FB_DEVICE=y
 +CONFIG_FB_SIMPLE=y
 +CONFIG_FRAMEBUFFER_CONSOLE=y
 +CONFIG_VIDEO_NEXELL_S5P6818=y
