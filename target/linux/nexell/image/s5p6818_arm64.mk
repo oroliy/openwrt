@@ -22,7 +22,7 @@ define Device/nexell_x6818_arm64
   DEVICE_MODEL := x6818 (AArch64)
   DEVICE_DTS := s5p6818-x6818-nexell-timer
   SUPPORTED_DEVICES := nexell,x6818
-  DEVICE_PACKAGES := nexell-firmware
+  DEVICE_PACKAGES := nexell-firmware kmod-rtl8xxxu kmod-btusb kmod-input-gpio-keys-polled kmod-leds-gpio
   ARTIFACTS := Image Image-initramfs fit-initramfs dtb
   ARTIFACT/Image := copy-file $(KDIR)/Image
   ARTIFACT/Image-initramfs := copy-file $(KDIR)/Image-initramfs
