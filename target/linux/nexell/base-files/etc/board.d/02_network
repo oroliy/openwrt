@@ -5,9 +5,27 @@
 
 board_config_update
 
+eth_mac=""
+wifi_mac=""
+
+for arg in $(cat /proc/cmdline); do
+	case "$arg" in
+		macaddr=*|ethaddr=*)
+			eth_mac="${arg#*=}"
+			;;
+		wifimac=*|wlanmac=*)
+			wifi_mac="${arg#*=}"
+			;;
+	esac
+done
+
 case "$(board_name)" in
 nexell,x6818)
-	ucidef_set_interface_lan "eth0" "dhcp"
+	if [ -n "$eth_mac" ]; then
+		ucidef_set_interface_lan "eth0" "dhcp" "$eth_mac"
+	else
+		ucidef_set_interface_lan "eth0" "dhcp"
+	fi
 	;;
 esac
 

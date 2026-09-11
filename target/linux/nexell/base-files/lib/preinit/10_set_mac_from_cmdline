@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Extract MAC address parameters from /proc/cmdline (passed from U-Boot bootargs)
+# Supports:
+#   macaddr=<mac> / ethaddr=<mac>   -> eth0 (有线网卡)
+#   wifimac=<mac> / wlanmac=<mac>   -> wlan0 (WiFi USB网卡)
+#   btmac=<mac>                     -> Bluetooth (蓝牙)
+
+set_mac_from_cmdline() {
+	local eth_mac=""
+	local wifi_mac=""
+	local bt_mac=""
+
+	for arg in $(cat /proc/cmdline); do
+		case "$arg" in
+			macaddr=*|ethaddr=*)
+				eth_mac="${arg#*=}"
+				;;
+			wifimac=*|wlanmac=*)
+				wifi_mac="${arg#*=}"
+				;;
+			btmac=*)
+				bt_mac="${arg#*=}"
+				;;
+		esac
+	done
+
+	if [ -n "$eth_mac" ] && [ -d /sys/class/net/eth0 ]; then
+		echo "Applying persistent MAC $eth_mac to eth0 from cmdline..."
+		ip link set dev eth0 down 2>/dev/null || true
+		ip link set dev eth0 address "$eth_mac" 2>/dev/null || true
+		ip link set dev eth0 up 2>/dev/null || true
+	fi
+
+	# Generate udev or hotplug rules for dynamic devices (wlan0 / hci0)
+	if [ -n "$wifi_mac" ]; then
+		mkdir -p /etc/hotplug.d/net
+		cat <<- 'RULE' > /etc/hotplug.d/net/10-wifi-mac
+		[ "$ACTION" = "add" ] && [ "$INTERFACE" = "wlan0" ] && {
+			ip link set dev wlan0 down
+			ip link set dev wlan0 address "$wifi_mac"
+			ip link set dev wlan0 up
+		}
+		RULE
+		sed -i "s|\$wifi_mac|$wifi_mac|g" /etc/hotplug.d/net/10-wifi-mac
+	fi
+}
+
+boot_hook_add preinit_main set_mac_from_cmdline
