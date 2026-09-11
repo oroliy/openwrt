@@ -1,7 +1,7 @@
 From 7117c8d9d295f89cff76dcd9fc510e4a163cfc8c Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Mon, 31 Aug 2026 23:22:29 +0800
-Subject: [PATCH 01/11] soc: nexell: share S5P6818 drivers across architectures
+Subject: [PATCH 01/13] soc: nexell: share S5P6818 drivers across architectures
 
 Signed-off-by: liy <liygfg@gmail.com>
 ---
@@ -282,7 +282,7 @@ index e47f9a642..2c3fe554d 100644
 From 11e59d6ae75c94c66059ce0823b475abcbbd17a8 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Mon, 31 Aug 2026 23:23:13 +0800
-Subject: [PATCH 02/11] arm64: nexell: add S5P6818 x6818 platform
+Subject: [PATCH 02/13] arm64: nexell: add S5P6818 x6818 platform
 
 Signed-off-by: liy <liygfg@gmail.com>
 ---
@@ -934,7 +934,7 @@ index 000000000..ca2130718
 From 294ac37434cd3c68152103333a743a8572cbd77c Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Mon, 31 Aug 2026 23:23:32 +0800
-Subject: [PATCH 03/11] arm64: nexell: poll queued lock waiters on S5P6818
+Subject: [PATCH 03/13] arm64: nexell: poll queued lock waiters on S5P6818
 
 Signed-off-by: liy <liygfg@gmail.com>
 ---
@@ -1203,7 +1203,7 @@ index 7d96bed71..3b8a41a1c 100644
 From 4d493982f65007f3223f17e65c43cecc0c7d65a8 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Wed, 2 Sep 2026 02:46:13 +0800
-Subject: [PATCH 04/11] arm64: nexell: add experimental timer fallback
+Subject: [PATCH 04/13] arm64: nexell: add experimental timer fallback
 
 Signed-off-by: liy <liygfg@gmail.com>
 ---
@@ -1537,7 +1537,7 @@ index 000000000..fe6b0d157
 From 7129a20b0ed0bdd30935a5e525a45c2f691032d1 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Thu, 3 Sep 2026 22:26:26 +0800
-Subject: [PATCH 05/11] usb: host: ohci-nexell: skip inaccessible shutdown MMIO
+Subject: [PATCH 05/13] usb: host: ohci-nexell: skip inaccessible shutdown MMIO
  on S5P6818
 
 S5P6818 OHCI controller registers become inaccessible during system reboot
@@ -1584,7 +1584,7 @@ index 0804832f0..b1705e450 100644
 From 48f89d3c52c3bc1d047701ba72288e4de207a04c Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Mon, 7 Sep 2026 21:15:49 +0800
-Subject: [PATCH 06/11] arm64: nexell: support get_cycles() via nexell_timer
+Subject: [PATCH 06/13] arm64: nexell: support get_cycles() via nexell_timer
  and auto-heartbeat in watchdog
 
 ---
@@ -1628,7 +1628,7 @@ index 0da26db32..ddece0530 100644
 From 096c04e338f26bd338b4b3c540eaf048fe82085b Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Wed, 9 Sep 2026 20:46:51 +0800
-Subject: [PATCH 07/11] arm64: defconfigs: enable CONFIG_HOTPLUG_CPU and
+Subject: [PATCH 07/13] arm64: defconfigs: enable CONFIG_HOTPLUG_CPU and
  CONFIG_FB_DEVICE
 
 ---
@@ -1683,7 +1683,7 @@ index f620f78e9..d08d23787 100644
 From 87e2c89928963fc0895090c913241bbc11503603 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Thu, 10 Sep 2026 00:41:50 +0800
-Subject: [PATCH 08/11] arm64: dts: nexell: add basic peripherals for x6818
+Subject: [PATCH 08/13] arm64: dts: nexell: add basic peripherals for x6818
  (i2c, gpio-keys, leds, beeper, ir, mmc0, mmc1)
 
 ---
@@ -2044,7 +2044,7 @@ index bdc2bbe44..3764a6fae 100644
 From 31a644ebe7c70b261295d273dce8b923bdbb5223 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Thu, 10 Sep 2026 02:51:32 +0800
-Subject: [PATCH 09/11] arm64: dts & drivers: fix Nexell I2C pinctrl mutual
+Subject: [PATCH 09/13] arm64: dts & drivers: fix Nexell I2C pinctrl mutual
  exclusion and camera pins
 
 ---
@@ -3274,7 +3274,7 @@ index 951b38ff5..ad31632c5 100644
 From b32e7f0367f4cc2cd9c445c01def39899a1e0b17 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Thu, 10 Sep 2026 22:49:14 +0800
-Subject: [PATCH 10/11] arm64: dts: nexell: fix camera enable gpio polarity and
+Subject: [PATCH 10/13] arm64: dts: nexell: fix camera enable gpio polarity and
  regulator hierarchy
 
 ---
@@ -3317,7 +3317,7 @@ index 4992500e5..00952725b 100644
 From a1a4d6f5d572f8451cfbae4a29bf632a6d71fd0e Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Fri, 11 Sep 2026 22:09:12 +0800
-Subject: [PATCH 11/11] arm64: nexell: fix I2C bus clock, pinctrl init order,
+Subject: [PATCH 11/13] arm64: nexell: fix I2C bus clock, pinctrl init order,
  and camera GPIO
 
 clk-s5p6818: add bus_pclk dynamic calculation by reading DVOREG_BUS
@@ -3637,6 +3637,126 @@ index 47685f9be..a1e717d39 100644
  	dev_info(dev, "S5P6818 pinctrl registered: %u pins, %u GPIO banks\n",
  		 NEXELL_TOTAL_PINS, NEXELL_GPIO_BANKS);
  	return 0;
+-- 
+2.43.0
+
+
+From 2bfabdcbd3bfb86abdc29a3ad75dd44380e225ed Mon Sep 17 00:00:00 2001
+From: liy <12697416+oroliy@users.noreply.github.com>
+Date: Sat, 12 Sep 2026 00:44:45 +0800
+Subject: [PATCH 12/13] arm64: configs: enable CONFIG_INPUT_EVDEV=y for input
+ event devices
+
+---
+ arch/arm64/configs/x6818_arm64_defconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/configs/x6818_arm64_defconfig b/arch/arm64/configs/x6818_arm64_defconfig
+index 3764a6fae..8c762521e 100644
+--- a/arch/arm64/configs/x6818_arm64_defconfig
++++ b/arch/arm64/configs/x6818_arm64_defconfig
+@@ -44,6 +44,7 @@ CONFIG_SERIAL_SAMSUNG_CONSOLE=y
+ CONFIG_PINCTRL_NEXELL=y
+ CONFIG_INPUT_KEYBOARD=y
+ CONFIG_KEYBOARD_GPIO=y
++CONFIG_INPUT_EVDEV=y
+ CONFIG_NEW_LEDS=y
+ CONFIG_LEDS_CLASS=y
+ CONFIG_LEDS_GPIO=y
+-- 
+2.43.0
+
+
+From 57fe3d5ad613f0146bf53f59dbab7ad20e9a5543 Mon Sep 17 00:00:00 2001
+From: liy <12697416+oroliy@users.noreply.github.com>
+Date: Sat, 12 Sep 2026 00:59:29 +0800
+Subject: [PATCH 13/13] mmc: dw_mmc: prioritize slot GPIO card detect and
+ configure x6818 SD slots
+
+- Prioritize gpio_cd in dw_mci_get_cd() over MMC_CAP_NEEDS_POLL so that
+  polling mode accurately tracks slot GPIO state instead of assuming card
+  is permanently present.
+- Add disable-wp, cap-sd-highspeed, and cd-debounce-delay-ms to mmc0 and mmc1
+  in s5p6818-x6818.dts to prevent MicroSD cards from being falsely detected
+  as read-only and debounce insertion/removal glitches.
+---
+ arch/arm64/boot/dts/nexell/s5p6818-x6818.dts |  6 ++++
+ drivers/mmc/host/dw_mmc.c                    | 31 ++++++++++++--------
+ 2 files changed, 24 insertions(+), 13 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/nexell/s5p6818-x6818.dts b/arch/arm64/boot/dts/nexell/s5p6818-x6818.dts
+index 99ffdff89..d68b5f860 100644
+--- a/arch/arm64/boot/dts/nexell/s5p6818-x6818.dts
++++ b/arch/arm64/boot/dts/nexell/s5p6818-x6818.dts
+@@ -206,11 +206,17 @@ gmac_phy: ethernet-phy@4 {
+ 
+ &mmc0 {
+ 	cd-gpios = <&alive 1 GPIO_ACTIVE_LOW>;
++	cd-debounce-delay-ms = <100>;
++	cap-sd-highspeed;
++	disable-wp;
+ 	status = "okay";
+ };
+ 
+ &mmc1 {
+ 	cd-gpios = <&gpiob 25 GPIO_ACTIVE_LOW>;
++	cd-debounce-delay-ms = <100>;
++	cap-sd-highspeed;
++	disable-wp;
+ 	status = "okay";
+ };
+ 
+diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
+index 55158540c..d15fc5458 100644
+--- a/drivers/mmc/host/dw_mmc.c
++++ b/drivers/mmc/host/dw_mmc.c
+@@ -952,28 +952,33 @@ static int dw_mci_get_cd(struct mmc_host *mmc)
+ 	struct dw_mci *host = slot->host;
+ 	int gpio_cd = mmc_gpio_get_cd(mmc);
+ 
+-	/* Use platform get_cd function, else try onboard card detect */
+-	if (((mmc->caps & MMC_CAP_NEEDS_POLL)
+-				|| !mmc_card_is_removable(mmc))) {
++	/* Slot GPIO card detect takes precedence if defined */
++	if (gpio_cd >= 0) {
++		present = gpio_cd;
++	} else if (!mmc_card_is_removable(mmc)) {
+ 		present = 1;
+ 
+ 		if (!test_bit(DW_MMC_CARD_PRESENT, &slot->flags)) {
+-			if (mmc->caps & MMC_CAP_NEEDS_POLL) {
+-				dev_info(&mmc->class_dev,
+-					"card is polling.\n");
+-			} else {
+-				dev_info(&mmc->class_dev,
+-					"card is non-removable.\n");
+-			}
++			dev_info(&mmc->class_dev,
++				"card is non-removable.\n");
+ 			set_bit(DW_MMC_CARD_PRESENT, &slot->flags);
+ 		}
+ 
+ 		return present;
+-	} else if (gpio_cd >= 0)
+-		present = gpio_cd;
+-	else
++	} else if (mmc->caps & MMC_CAP_NEEDS_POLL) {
++		present = 1;
++
++		if (!test_bit(DW_MMC_CARD_PRESENT, &slot->flags)) {
++			dev_info(&mmc->class_dev,
++				"card is polling.\n");
++			set_bit(DW_MMC_CARD_PRESENT, &slot->flags);
++		}
++
++		return present;
++	} else {
+ 		present = (mci_readl(slot->host, CDETECT) & (1 << slot->id))
+ 			== 0 ? 1 : 0;
++	}
+ 
+ 	spin_lock_bh(&host->lock);
+ 	if (present && !test_and_set_bit(DW_MMC_CARD_PRESENT, &slot->flags))
 -- 
 2.43.0
 
