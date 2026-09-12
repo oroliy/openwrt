@@ -313,40 +313,95 @@ echo "==> Flashing '$IMAGE' to '$TARGET_REAL'..."
 mkfifo "$stream_fifo"
 decompress_cat "$IMAGE" > "$stream_fifo" &
 producer_pid="$!"
-dd if="$stream_fifo" of="$TARGET_REAL" bs=4M conv=fsync status=progress &
-consumer_pid="$!"
+ # Keep one FIFO reader open while the shell advances through bounded writes.
+ # A single multi-gigabyte dd can starve the S5P6818 watchdog path while raw
+ # MMC I/O is in flight; 16 MiB transactions return to ash before the 10 s
+ # hardware deadline and each transaction is fsync'd before continuing.
+exec 3< "$stream_fifo"
+chunk_bytes=$((16 * 1024 * 1024))
+chunk_blocks=4 # 4 x 4 MiB
+full_chunks=$((EXPECTED_SIZE / chunk_bytes))
+remainder=$((EXPECTED_SIZE % chunk_bytes))
+write_rc=0
+chunk_index=0
+while [ "$chunk_index" -lt "$full_chunks" ]; do
+	dd of="$TARGET_REAL" bs=4M count="$chunk_blocks" <&3 \
+		iflag=fullblock seek="$((chunk_index * chunk_blocks))" \
+		conv=notrunc,fsync 2>/dev/null &
+	consumer_pid="$!"
+	set +e
+	wait "$consumer_pid"
+	chunk_status="$?"
+	set -e
+	consumer_pid=""
+	if [ "$chunk_status" -ne 0 ]; then
+		write_rc="$chunk_status"
+		break
+	fi
+	chunk_index=$((chunk_index + 1))
+done
+if [ "$write_rc" -eq 0 ] && [ "$remainder" -gt 0 ]; then
+	dd of="$TARGET_REAL" bs=1 count="$remainder" \
+		seek="$((full_chunks * chunk_bytes))" conv=notrunc,fsync <&3 2>/dev/null &
+	consumer_pid="$!"
+	set +e
+	wait "$consumer_pid"
+	write_rc="$?"
+	set -e
+	consumer_pid=""
+fi
+exec 3<&-
 set +e
-wait "$consumer_pid"
-consumer_rc="$?"
-consumer_pid=""
 wait "$producer_pid"
 producer_rc="$?"
 producer_pid=""
 set -e
 rm -f "$stream_fifo"
-if [ "$producer_rc" -ne 0 ] || [ "$consumer_rc" -ne 0 ]; then
-	echo "Error: Image write stream failed (producer=$producer_rc, writer=$consumer_rc)" >&2
+if [ "$producer_rc" -ne 0 ] || [ "$write_rc" -ne 0 ]; then
+	echo "Error: Image write stream failed (producer=$producer_rc, writer=$write_rc)" >&2
 	exit 1
 fi
 
-sync
 echo "==> Verifying complete payload on '$TARGET_REAL'..."
 mkfifo "$stream_fifo"
-head -c "$EXPECTED_SIZE" "$TARGET_REAL" > "$stream_fifo" &
-producer_pid="$!"
 sha256sum < "$stream_fifo" > "$digest_tmp" &
 consumer_pid="$!"
+producer_pid=""
+chunk_rc=0
+chunk_index=0
+while [ "$chunk_index" -lt "$full_chunks" ]; do
+	dd if="$TARGET_REAL" of="$stream_fifo" bs=4M count="$chunk_blocks" \
+		iflag=fullblock skip="$((chunk_index * chunk_blocks))" 2>/dev/null &
+	producer_pid="$!"
+	set +e
+	wait "$producer_pid"
+	chunk_status="$?"
+	set -e
+	producer_pid=""
+	if [ "$chunk_status" -ne 0 ]; then
+		chunk_rc="$chunk_status"
+		break
+	fi
+	chunk_index=$((chunk_index + 1))
+done
+if [ "$chunk_rc" -eq 0 ] && [ "$remainder" -gt 0 ]; then
+	dd if="$TARGET_REAL" of="$stream_fifo" bs=1 count="$remainder" \
+		skip="$((full_chunks * chunk_bytes))" 2>/dev/null &
+	producer_pid="$!"
+	set +e
+	wait "$producer_pid"
+	chunk_rc="$?"
+	set -e
+	producer_pid=""
+fi
 set +e
 wait "$consumer_pid"
 consumer_rc="$?"
 consumer_pid=""
-wait "$producer_pid"
-producer_rc="$?"
-producer_pid=""
 set -e
 rm -f "$stream_fifo"
-if [ "$producer_rc" -ne 0 ] || [ "$consumer_rc" -ne 0 ]; then
-	echo "Error: Full readback stream failed (reader=$producer_rc, hasher=$consumer_rc)" >&2
+if [ "$producer_rc" -ne 0 ] || [ "$consumer_rc" -ne 0 ] || [ "$chunk_rc" -ne 0 ]; then
+	echo "Error: Full readback stream failed (reader=$producer_rc, hasher=$consumer_rc, chunks=$chunk_rc)" >&2
 	exit 1
 fi
 readback_sha256="$(awk '{ print $1 }' "$digest_tmp")"
