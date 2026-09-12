@@ -1,0 +1,22 @@
+#!/bin/sh /etc/rc.common
+# x6818 boot splash: paint the MIPI panel framebuffer after boot.
+# The panel is initialized by U-Boot (simple-framebuffer at /dev/fb0);
+# this script refreshes the picture from /etc/x6818/splash.raw
+# (1024x600 X8R8G8B8, stride 4096). Replace that file with your own
+# raw image (see docs) and restart this service to update the picture.
+
+START=99
+
+show_splash() {
+	[ -c /dev/fb0 ] || return 0
+	[ -f "$1" ] || return 0
+	cat "$1" > /dev/fb0 2>/dev/null
+}
+
+start() {
+	show_splash /etc/x6818/splash.raw
+}
+
+restart() {
+	show_splash "${1:-/etc/x6818/splash.raw}"
+}

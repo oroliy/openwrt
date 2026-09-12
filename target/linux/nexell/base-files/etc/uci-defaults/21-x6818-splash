@@ -1,0 +1,4 @@
+#!/bin/sh
+# Enable the x6818 boot splash service on first boot.
+/etc/init.d/x6818-splash enable
+exit 0
