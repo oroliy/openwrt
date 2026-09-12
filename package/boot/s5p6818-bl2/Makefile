@@ -3,17 +3,22 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=s5p6818-bl2
 PKG_VERSION:=2026.09.08
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/oroliy/x6818-bl2.git
 PKG_SOURCE_VERSION:=ae8be7c69f4acd50a0497d6e8feb4485ee2abe22
+PKG_MIRROR_HASH:=3ab746f2277e479976d8ce0f19522ab16edcbdd431a0d0a8d477d9e8bd8162e3
 PKG_LICENSE:=GPL-2.0-or-later
 PKG_LICENSE_FILES:=COPYING
 PKG_FLAGS:=nonshared
-PKG_CONFIG_DEPENDS += X6818_ALLOW_NEXELL_TIMER_FALLBACK
+PKG_CONFIG_DEPENDS += \
+	X6818_ALLOW_NEXELL_TIMER_FALLBACK \
+	X6818_BL2_SOURCE_DIR
 
-X6818_BL2_SOURCE_DIR ?= $(wildcard $(TOPDIR)/../firmware-lts/bl2)
-USE_SOURCE_DIR ?= $(X6818_BL2_SOURCE_DIR)
+X6818_BL2_SOURCE_DIR ?=
+ifneq ($(strip $(X6818_BL2_SOURCE_DIR)),)
+USE_SOURCE_DIR := $(X6818_BL2_SOURCE_DIR)
+endif
 
 include $(INCLUDE_DIR)/kernel.mk
 include $(INCLUDE_DIR)/package.mk
@@ -31,14 +36,6 @@ define Package/s5p6818-bl2
   TITLE:=Nexell S5P6818 AArch64 BL2
   DEPENDS:=@TARGET_nexell_s5p6818_arm64
   BUILDONLY:=1
-endef
-
-# The local product BL2 has no public, immutable source archive yet.  Keep the
-# download path closed until a hosted source and mirror hash are reviewed.
-define Build/Prepare
-	@test -n "$(USE_SOURCE_DIR)" || { echo "s5p6818-bl2: USE_SOURCE_DIR is required; release source gate is closed"; exit 1; }
-	@test -d "$(USE_SOURCE_DIR)" || { echo "s5p6818-bl2: missing USE_SOURCE_DIR=$(USE_SOURCE_DIR)"; exit 1; }
-	$(Build/Prepare/Default)
 endef
 
 define Build/Compile

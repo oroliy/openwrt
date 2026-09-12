@@ -4,16 +4,21 @@ include $(TOPDIR)/rules.mk
 PKG_NAME:=arm-trusted-firmware-s5p6818
 PKG_VERSION:=2.12.14
 PKG_LTS:=1
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/oroliy/x6818-tfa.git
 PKG_SOURCE_VERSION:=a7dae5badba79aad90d08e3fdd254a0cec855cea
+PKG_SOURCE_SUBDIR:=$(PKG_NAME)-lts-v$(PKG_VERSION)
+PKG_MIRROR_HASH:=c4e297f9943611b382d2d865d5887840bfeb68508f5eb0e3be3e0c1fcc68a667
 PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=docs/license.rst
 PKG_FLAGS:=nonshared
+PKG_CONFIG_DEPENDS += X6818_TFA_SOURCE_DIR
 
-X6818_TFA_SOURCE_DIR ?= $(wildcard $(TOPDIR)/../firmware-lts/tfa)
-USE_SOURCE_DIR ?= $(X6818_TFA_SOURCE_DIR)
+X6818_TFA_SOURCE_DIR ?=
+ifneq ($(strip $(X6818_TFA_SOURCE_DIR)),)
+USE_SOURCE_DIR := $(X6818_TFA_SOURCE_DIR)
+endif
 
 include $(INCLUDE_DIR)/kernel.mk
 include $(INCLUDE_DIR)/trusted-firmware-a.mk
@@ -41,15 +46,6 @@ TFA_MAKE_FLAGS+= \
 	BL31_BASE=0x7fe80000 \
 	PRELOADED_BL33_BASE=0x43c00000
 TFA_MAKE_FLAGS+= bl31
-
-# The Nexell fork's commit is locally reproducible, but its remote commit and
-# a release mirror hash are not verified here.  Require the reviewed source
-# export until that download gate is opened.
-define Build/Prepare
-	@test -n "$(USE_SOURCE_DIR)" || { echo "arm-trusted-firmware-s5p6818: USE_SOURCE_DIR is required; release source gate is closed"; exit 1; }
-	@test -d "$(USE_SOURCE_DIR)" || { echo "arm-trusted-firmware-s5p6818: missing USE_SOURCE_DIR=$(USE_SOURCE_DIR)"; exit 1; }
-	$(Build/Prepare/Default)
-endef
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(STAGING_DIR_IMAGE)/x6818

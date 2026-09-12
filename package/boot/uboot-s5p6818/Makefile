@@ -6,14 +6,18 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=uboot-s5p6818
 PKG_VERSION:=2026.07
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/oroliy/x6818-uboot.git
-PKG_SOURCE_VERSION:=0ef95b71f30aff73043b87ad2e5e4cb6ce553986
+PKG_SOURCE_VERSION:=877cb2c828dd404aebb09eb3b4055e945c601590
+PKG_MIRROR_HASH:=14589680d90b7a5b25144e07d65eadcb5c9e71f4a9a72c77f933906248514f4c
 PKG_LICENSE:=GPL-2.0-only
+PKG_CONFIG_DEPENDS += X6818_UBOOT_SOURCE_DIR
 
-X6818_UBOOT_SOURCE_DIR ?= $(wildcard $(TOPDIR)/../uboot-lts)
-USE_SOURCE_DIR ?= $(X6818_UBOOT_SOURCE_DIR)
+X6818_UBOOT_SOURCE_DIR ?=
+ifneq ($(strip $(X6818_UBOOT_SOURCE_DIR)),)
+USE_SOURCE_DIR := $(X6818_UBOOT_SOURCE_DIR)
+endif
 
 include $(INCLUDE_DIR)/u-boot.mk
 include $(INCLUDE_DIR)/package.mk
@@ -37,11 +41,6 @@ endef
 UBOOT_TARGETS:=x6818_arm64
 UBOOT_CONFIGURE_VARS += O=$(UBOOT_OUTPUT_DIR)
 UBOOT_MAKE_FLAGS += O=$(UBOOT_OUTPUT_DIR)
-
-define Build/Prepare
-	@test -n "$(USE_SOURCE_DIR)" || { echo "$(PKG_NAME) requires X6818_UBOOT_SOURCE_DIR=/path/to/x6818-20260908-source until the source is published" >&2; exit 1; }
-	$(Build/Prepare/Default)
-endef
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(STAGING_DIR_IMAGE)/x6818
