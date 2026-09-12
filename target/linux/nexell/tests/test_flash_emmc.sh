@@ -56,6 +56,7 @@ mock_proc="$tmp/proc"
 fake_sys="$tmp/sys-class-block"
 mkdir -p "$mock_proc" "$fake_sys"
 echo "/dev/mmcblk1p2 / overlay rw 0 0" > "$mock_proc/mounts"
+echo "" > "$mock_proc/mountinfo"
 
 touch "$tmp/mounted_target_emmc"
 real_mounted="$(readlink -f "$tmp/mounted_target_emmc")"
@@ -66,6 +67,47 @@ not_expect env X6818_PROC_MOUNTS="$mock_proc/mounted" \
 	"$(sha "$tmp/emmc_channel2.img")"
 [ ! -s "$tmp/mounted_target_emmc" ] || fail "mounted target was modified"
 echo "ok: mounted target partition rejected"
+
+touch "$tmp/aliased_target_emmc"
+mkdir -p "$fake_sys/aliased_target_emmc/holders" \
+	"$fake_sys/aliased_target_emmcp1/holders"
+echo 179:0 > "$fake_sys/aliased_target_emmc/dev"
+echo 179:1 > "$fake_sys/aliased_target_emmcp1/dev"
+touch "$fake_sys/aliased_target_emmcp1/partition"
+echo "36 25 179:1 / /mnt/test rw,relatime - ext4 /dev/root rw" > "$mock_proc/aliased-mountinfo"
+not_expect env X6818_PROC_MOUNTS="$mock_proc/mounts" \
+	X6818_PROC_MOUNTINFO="$mock_proc/aliased-mountinfo" \
+	X6818_SYS_CLASS_BLOCK="$fake_sys" \
+	"$tool" "$tmp/emmc_channel2.img" "$tmp/aliased_target_emmc" \
+	"$(sha "$tmp/emmc_channel2.img")" "$(size "$tmp/emmc_channel2.img")" \
+	"$(sha "$tmp/emmc_channel2.img")"
+[ ! -s "$tmp/aliased_target_emmc" ] || fail "major:minor mounted target was modified"
+echo "ok: mounted target alias rejected by major:minor"
+
+touch "$tmp/held_target_emmc"
+mkdir -p "$fake_sys/held_target_emmc/holders"
+echo 179:8 > "$fake_sys/held_target_emmc/dev"
+touch "$fake_sys/held_target_emmc/holders/dm-0"
+not_expect env X6818_PROC_MOUNTS="$mock_proc/mounts" \
+	X6818_PROC_MOUNTINFO="$mock_proc/mountinfo" \
+	X6818_SYS_CLASS_BLOCK="$fake_sys" \
+	"$tool" "$tmp/emmc_channel2.img" "$tmp/held_target_emmc" \
+	"$(sha "$tmp/emmc_channel2.img")" "$(size "$tmp/emmc_channel2.img")" \
+	"$(sha "$tmp/emmc_channel2.img")"
+[ ! -s "$tmp/held_target_emmc" ] || fail "held target was modified"
+echo "ok: target with active block holder rejected"
+
+touch "$tmp/unverifiable_target_emmc"
+mkdir -p "$fake_sys/unverifiable_target_emmc/holders"
+echo 179:16 > "$fake_sys/unverifiable_target_emmc/dev"
+not_expect env X6818_PROC_MOUNTS="$mock_proc/mounts" \
+	X6818_PROC_MOUNTINFO="$mock_proc/does-not-exist" \
+	X6818_SYS_CLASS_BLOCK="$fake_sys" \
+	"$tool" "$tmp/emmc_channel2.img" "$tmp/unverifiable_target_emmc" \
+	"$(sha "$tmp/emmc_channel2.img")" "$(size "$tmp/emmc_channel2.img")" \
+	"$(sha "$tmp/emmc_channel2.img")"
+[ ! -s "$tmp/unverifiable_target_emmc" ] || fail "unverifiable target was modified"
+echo "ok: missing mountinfo fails closed"
 
 touch "$tmp/sd_target"
 mkdir -p "$fake_sys/sd_target/device"

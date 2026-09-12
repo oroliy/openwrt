@@ -22,6 +22,7 @@ EXPECTED_COMPRESSED_SHA256="$3"
 EXPECTED_SIZE="$4"
 EXPECTED_EXPANDED_SHA256="$5"
 MOUNTS_FILE="${X6818_PROC_MOUNTS:-/proc/mounts}"
+MOUNTINFO_FILE="${X6818_PROC_MOUNTINFO:-/proc/self/mountinfo}"
 SYS_CLASS_BLOCK="${X6818_SYS_CLASS_BLOCK:-/sys/class/block}"
 
 if [ ! -f "$IMAGE" ]; then
@@ -214,6 +215,10 @@ if [ -r "$target_sysfs/size" ]; then
 	fi
 fi
 
+if [ ! -r "$MOUNTS_FILE" ]; then
+	echo "Error: Cannot inspect mounted paths in '$MOUNTS_FILE'" >&2
+	exit 1
+fi
 if awk -v dev="$TARGET_REAL" '
 	index($1, dev) == 1 {
 		suffix = substr($1, length(dev) + 1)
@@ -224,6 +229,52 @@ if awk -v dev="$TARGET_REAL" '
 ' "$MOUNTS_FILE"; then
 	echo "Error: Target '$TARGET_REAL' or one of its partitions is mounted" >&2
 	exit 1
+fi
+
+# Path matching above catches ordinary mounts and is also useful for regular
+# file fixtures.  For a real block target, compare kernel device identities so
+# aliases such as /dev/root cannot bypass the guard.  A holder means another
+# block device (for example dm-crypt or device-mapper) depends on the target;
+# writing through that dependency would be unsafe even when it is not mounted.
+if [ -r "$target_sysfs/dev" ]; then
+	if [ ! -r "$MOUNTINFO_FILE" ]; then
+		echo "Error: Cannot inspect mounted block-device identities in '$MOUNTINFO_FILE'" >&2
+		exit 1
+	fi
+	for block_sysfs in "$target_sysfs" "$SYS_CLASS_BLOCK"/"${target_name}"p*; do
+		[ -e "$block_sysfs" ] || continue
+		if [ "$block_sysfs" != "$target_sysfs" ] && [ ! -e "$block_sysfs/partition" ]; then
+			continue
+		fi
+		if [ ! -r "$block_sysfs/dev" ] || [ ! -d "$block_sysfs/holders" ]; then
+			echo "Error: Cannot verify mount/holder state in '$block_sysfs'" >&2
+			exit 1
+		fi
+		block_majmin="$(cat "$block_sysfs/dev")"
+		case "$block_majmin" in *:*) ;; *)
+			echo "Error: Invalid block-device identity '$block_majmin' in '$block_sysfs/dev'" >&2
+			exit 1
+			;;
+		esac
+		block_major="${block_majmin%%:*}"
+		block_minor="${block_majmin#*:}"
+		case "$block_major:$block_minor" in
+			:*|*:|*[!0-9:]*|*:*:*)
+				echo "Error: Invalid block-device identity '$block_majmin' in '$block_sysfs/dev'" >&2
+				exit 1
+				;;
+		esac
+		if awk -v majmin="$block_majmin" '$3 == majmin { found = 1 } END { exit found ? 0 : 1 }' \
+			"$MOUNTINFO_FILE"; then
+			echo "Error: Target block identity '$block_majmin' is mounted" >&2
+			exit 1
+		fi
+		for holder in "$block_sysfs"/holders/*; do
+			[ -e "$holder" ] || continue
+			echo "Error: Target block device has active holder '${holder##*/}'" >&2
+			exit 1
+		done
+	done
 fi
 
 echo "Target device: $TARGET_REAL"
