@@ -1,7 +1,7 @@
 From 7117c8d9d295f89cff76dcd9fc510e4a163cfc8c Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Mon, 31 Aug 2026 23:22:29 +0800
-Subject: [PATCH 01/16] soc: nexell: share S5P6818 drivers across architectures
+Subject: [PATCH 01/18] soc: nexell: share S5P6818 drivers across architectures
 
 Signed-off-by: liy <liygfg@gmail.com>
 ---
@@ -282,7 +282,7 @@ index e47f9a642..2c3fe554d 100644
 From 11e59d6ae75c94c66059ce0823b475abcbbd17a8 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Mon, 31 Aug 2026 23:23:13 +0800
-Subject: [PATCH 02/16] arm64: nexell: add S5P6818 x6818 platform
+Subject: [PATCH 02/18] arm64: nexell: add S5P6818 x6818 platform
 
 Signed-off-by: liy <liygfg@gmail.com>
 ---
@@ -934,7 +934,7 @@ index 000000000..ca2130718
 From 294ac37434cd3c68152103333a743a8572cbd77c Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Mon, 31 Aug 2026 23:23:32 +0800
-Subject: [PATCH 03/16] arm64: nexell: poll queued lock waiters on S5P6818
+Subject: [PATCH 03/18] arm64: nexell: poll queued lock waiters on S5P6818
 
 Signed-off-by: liy <liygfg@gmail.com>
 ---
@@ -1203,7 +1203,7 @@ index 7d96bed71..3b8a41a1c 100644
 From 4d493982f65007f3223f17e65c43cecc0c7d65a8 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Wed, 2 Sep 2026 02:46:13 +0800
-Subject: [PATCH 04/16] arm64: nexell: add experimental timer fallback
+Subject: [PATCH 04/18] arm64: nexell: add experimental timer fallback
 
 Signed-off-by: liy <liygfg@gmail.com>
 ---
@@ -1537,7 +1537,7 @@ index 000000000..fe6b0d157
 From 7129a20b0ed0bdd30935a5e525a45c2f691032d1 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Thu, 3 Sep 2026 22:26:26 +0800
-Subject: [PATCH 05/16] usb: host: ohci-nexell: skip inaccessible shutdown MMIO
+Subject: [PATCH 05/18] usb: host: ohci-nexell: skip inaccessible shutdown MMIO
  on S5P6818
 
 S5P6818 OHCI controller registers become inaccessible during system reboot
@@ -1584,7 +1584,7 @@ index 0804832f0..b1705e450 100644
 From 48f89d3c52c3bc1d047701ba72288e4de207a04c Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Mon, 7 Sep 2026 21:15:49 +0800
-Subject: [PATCH 06/16] arm64: nexell: support get_cycles() via nexell_timer
+Subject: [PATCH 06/18] arm64: nexell: support get_cycles() via nexell_timer
  and auto-heartbeat in watchdog
 
 ---
@@ -1628,7 +1628,7 @@ index 0da26db32..ddece0530 100644
 From 096c04e338f26bd338b4b3c540eaf048fe82085b Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Wed, 9 Sep 2026 20:46:51 +0800
-Subject: [PATCH 07/16] arm64: defconfigs: enable CONFIG_HOTPLUG_CPU and
+Subject: [PATCH 07/18] arm64: defconfigs: enable CONFIG_HOTPLUG_CPU and
  CONFIG_FB_DEVICE
 
 ---
@@ -1683,7 +1683,7 @@ index f620f78e9..d08d23787 100644
 From 87e2c89928963fc0895090c913241bbc11503603 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Thu, 10 Sep 2026 00:41:50 +0800
-Subject: [PATCH 08/16] arm64: dts: nexell: add basic peripherals for x6818
+Subject: [PATCH 08/18] arm64: dts: nexell: add basic peripherals for x6818
  (i2c, gpio-keys, leds, beeper, ir, mmc0, mmc1)
 
 ---
@@ -2044,7 +2044,7 @@ index bdc2bbe44..3764a6fae 100644
 From 31a644ebe7c70b261295d273dce8b923bdbb5223 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Thu, 10 Sep 2026 02:51:32 +0800
-Subject: [PATCH 09/16] arm64: dts & drivers: fix Nexell I2C pinctrl mutual
+Subject: [PATCH 09/18] arm64: dts & drivers: fix Nexell I2C pinctrl mutual
  exclusion and camera pins
 
 ---
@@ -3274,7 +3274,7 @@ index 951b38ff5..ad31632c5 100644
 From b32e7f0367f4cc2cd9c445c01def39899a1e0b17 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Thu, 10 Sep 2026 22:49:14 +0800
-Subject: [PATCH 10/16] arm64: dts: nexell: fix camera enable gpio polarity and
+Subject: [PATCH 10/18] arm64: dts: nexell: fix camera enable gpio polarity and
  regulator hierarchy
 
 ---
@@ -3317,7 +3317,7 @@ index 4992500e5..00952725b 100644
 From a1a4d6f5d572f8451cfbae4a29bf632a6d71fd0e Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Fri, 11 Sep 2026 22:09:12 +0800
-Subject: [PATCH 11/16] arm64: nexell: fix I2C bus clock, pinctrl init order,
+Subject: [PATCH 11/18] arm64: nexell: fix I2C bus clock, pinctrl init order,
  and camera GPIO
 
 clk-s5p6818: add bus_pclk dynamic calculation by reading DVOREG_BUS
@@ -3644,7 +3644,7 @@ index 47685f9be..a1e717d39 100644
 From 2bfabdcbd3bfb86abdc29a3ad75dd44380e225ed Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Sat, 12 Sep 2026 00:44:45 +0800
-Subject: [PATCH 12/16] arm64: configs: enable CONFIG_INPUT_EVDEV=y for input
+Subject: [PATCH 12/18] arm64: configs: enable CONFIG_INPUT_EVDEV=y for input
  event devices
 
 ---
@@ -3670,7 +3670,7 @@ index 3764a6fae..8c762521e 100644
 From 57fe3d5ad613f0146bf53f59dbab7ad20e9a5543 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Sat, 12 Sep 2026 00:59:29 +0800
-Subject: [PATCH 13/16] mmc: dw_mmc: prioritize slot GPIO card detect and
+Subject: [PATCH 13/18] mmc: dw_mmc: prioritize slot GPIO card detect and
  configure x6818 SD slots
 
 - Prioritize gpio_cd in dw_mci_get_cd() over MMC_CAP_NEEDS_POLL so that
@@ -3764,7 +3764,7 @@ index 55158540c..d15fc5458 100644
 From 0d092f14b37c7f375176527741ad13a0d3deede7 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Sat, 12 Sep 2026 02:59:48 +0800
-Subject: [PATCH 14/16] i2c: nexell: add polling completion fallback for
+Subject: [PATCH 14/18] i2c: nexell: add polling completion fallback for
  S5P6818
 
 On x6818 hardware the master-transfer completion IRQ of the Nexell I2C
@@ -3878,7 +3878,7 @@ index 4fccfaefb..37504aead 100644
 From 66146c3e2e2e5282ee567bbc00bd57491d2e71fa Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Sat, 12 Sep 2026 03:54:42 +0800
-Subject: [PATCH 15/16] arm64: dts: nexell: run the x6818 camera I2C bus
+Subject: [PATCH 15/18] arm64: dts: nexell: run the x6818 camera I2C bus
  bit-banged
 
 The S5P6818 hardware I2C controllers do not start transfers in the
@@ -3988,7 +3988,7 @@ index d68b5f860..e4f7adaf1 100644
 From c5efbdeba485731b98194896d1a22f8b2318276a Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Sat, 12 Sep 2026 04:12:35 +0800
-Subject: [PATCH 16/16] arm64: dts: nexell: disable hw i2c0 on x6818, keep
+Subject: [PATCH 16/18] arm64: dts: nexell: disable hw i2c0 on x6818, keep
  bit-banged camera bus
 
 Booting with the i2c-cam bit-banged bus alongside the enabled hardware
@@ -4021,6 +4021,583 @@ index e4f7adaf1..98bbc486f 100644
  };
  
  &pwm {
+-- 
+2.43.0
+
+
+From 8c72123093fdc395be9af12f66121ec416cd239f Mon Sep 17 00:00:00 2001
+From: liy <12697416+oroliy@users.noreply.github.com>
+Date: Sat, 12 Sep 2026 11:22:33 +0800
+Subject: [PATCH 17/18] pinctrl: nexell: add GPIO interrupt support and x6818
+ touch panel
+
+Add a per-bank gpio irqchip for the GPIOA..GPIOE banks: one combined
+GIC line per bank (SPI 53..57) with per-pin pending in GPIOxDET,
+enable pair GPIOxINTENB/GPIOxDETENB and the vendor 3-bit detect-mode
+encoding (0=low, 1=high, 2=falling, 3=rising, 4=both edges) spread
+across GPIOxDETMODE[01] and GPIOxDETMODEEX.
+
+On the x6818 board this enables the capacitive touch panel: the touch
+bus is bit-banged on the I2C1 pins (the hardware controllers do not
+run), and a goodix,gt928 node describes the panel with its interrupt
+on gpiob-29 and reset on gpioc-12 for the 1024x600 MIPI panel.  The
+remaining hw i2c1/i2c2 nodes are disabled for the same reason as
+i2c0.  Enable INPUT_TOUCHSCREEN/TOUCHSCREEN_GOODIX/GPIOLIB_IRQCHIP in
+the arm64 x6818 defconfig.
+---
+ arch/arm64/boot/dts/nexell/s5p6818-x6818.dts |  51 +++++-
+ arch/arm64/boot/dts/nexell/s5p6818.dtsi      |  15 ++
+ arch/arm64/configs/x6818_arm64_defconfig     |   3 +
+ drivers/pinctrl/nexell/Kconfig               |   1 +
+ drivers/pinctrl/nexell/pinctrl-s5p6818.c     | 172 +++++++++++++++++++
+ 5 files changed, 234 insertions(+), 8 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/nexell/s5p6818-x6818.dts b/arch/arm64/boot/dts/nexell/s5p6818-x6818.dts
+index 98bbc486f..c6b334ce6 100644
+--- a/arch/arm64/boot/dts/nexell/s5p6818-x6818.dts
++++ b/arch/arm64/boot/dts/nexell/s5p6818-x6818.dts
+@@ -75,9 +75,14 @@ button-back {
+ 	gpio_leds: leds {
+ 		compatible = "gpio-leds";
+ 
++		/*
++		 * gpioc-12 is MCU_TOUCH_RESET for the MIPI panel per the
++		 * baseboard documentation, so the blue user LED sits on
++		 * gpioc-13 (user LED net) instead.
++		 */
+ 		led0 {
+ 			label = "x6818:blue:user";
+-			gpios = <&gpioc 12 GPIO_ACTIVE_LOW>;
++			gpios = <&gpioc 13 GPIO_ACTIVE_LOW>;
+ 			linux,default-trigger = "heartbeat";
+ 			default-state = "off";
+ 		};
+@@ -186,6 +191,33 @@ beeper: beeper {
+ 		gpios = <&gpioc 14 GPIO_ACTIVE_HIGH>;
+ 	};
+ 
++	/*
++	 * Capacitive touch panel bus, bit-banged on the I2C1 pins
++	 * (SCL=GPIOD4, SDA=GPIOD5) for the same reason as i2c-cam.
++	 */
++	i2c_touch: i2c-touch {
++		compatible = "i2c-gpio";
++		sda-gpios = <&gpiod 5 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
++		scl-gpios = <&gpiod 4 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
++		i2c-gpio,delay-us = <2>;
++		#address-cells = <1>;
++		#size-cells = <0>;
++		status = "okay";
++
++		touchscreen@40 {
++			compatible = "silead,gsl1680";
++			reg = <0x40>;
++			interrupt-parent = <&gpiob>;
++			interrupts = <29 IRQ_TYPE_EDGE_FALLING>;
++			irq-gpios = <&gpiob 29 GPIO_ACTIVE_HIGH>;
++			reset-gpios = <&gpioc 12 GPIO_ACTIVE_HIGH>;
++			firmware-name = "gsl1680-x6818.fw";
++			touchscreen-size-x = <1024>;
++			touchscreen-size-y = <600>;
++			status = "okay";
++		};
++	};
++
+ 	ir_receiver: ir-receiver {
+ 		compatible = "gpio-ir-receiver";
+ 		gpios = <&gpiod 8 GPIO_ACTIVE_LOW>;
+@@ -276,17 +308,20 @@ &i2c0 {
+ 	status = "disabled";
+ };
+ 
+-&pwm {
+-	status = "okay";
+-};
+-
++/*
++ * The S5P6818 hardware I2C controllers do not start transfers (see the
++ * i2c-cam note above), so the touch panel bus is also bit-banged on the
++ * I2C1 pins.
++ */
+ &i2c1 {
+-	clock-frequency = <200000>;
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &i2c2 {
+-	clock-frequency = <100000>;
++	status = "disabled";
++};
++
++&pwm {
+ 	status = "okay";
+ };
+ 
+diff --git a/arch/arm64/boot/dts/nexell/s5p6818.dtsi b/arch/arm64/boot/dts/nexell/s5p6818.dtsi
+index f7e8ff46b..271a54fac 100644
+--- a/arch/arm64/boot/dts/nexell/s5p6818.dtsi
++++ b/arch/arm64/boot/dts/nexell/s5p6818.dtsi
+@@ -174,26 +174,41 @@ pinctrl: pinctrl@c001a000 {
+ 			      <0xc001e000 0x1000>,
+ 			      <0xc0010800 0x0200>;
+ 			#pinctrl-cells = <0>;
++			interrupts = <GIC_SPI 53 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 54 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>;
+ 
+ 			gpioa: gpioa {
+ 				gpio-controller;
+ 				#gpio-cells = <2>;
++				interrupt-controller;
++				#interrupt-cells = <2>;
+ 			};
+ 			gpiob: gpiob {
+ 				gpio-controller;
+ 				#gpio-cells = <2>;
++				interrupt-controller;
++				#interrupt-cells = <2>;
+ 			};
+ 			gpioc: gpioc {
+ 				gpio-controller;
+ 				#gpio-cells = <2>;
++				interrupt-controller;
++				#interrupt-cells = <2>;
+ 			};
+ 			gpiod: gpiod {
+ 				gpio-controller;
+ 				#gpio-cells = <2>;
++				interrupt-controller;
++				#interrupt-cells = <2>;
+ 			};
+ 			gpioe: gpioe {
+ 				gpio-controller;
+ 				#gpio-cells = <2>;
++				interrupt-controller;
++				#interrupt-cells = <2>;
+ 			};
+ 			alive: alive {
+ 				gpio-controller;
+diff --git a/arch/arm64/configs/x6818_arm64_defconfig b/arch/arm64/configs/x6818_arm64_defconfig
+index 8c762521e..6851ddac0 100644
+--- a/arch/arm64/configs/x6818_arm64_defconfig
++++ b/arch/arm64/configs/x6818_arm64_defconfig
+@@ -50,6 +50,8 @@ CONFIG_LEDS_CLASS=y
+ CONFIG_LEDS_GPIO=y
+ CONFIG_LEDS_TRIGGERS=y
+ CONFIG_LEDS_TRIGGER_HEARTBEAT=y
++CONFIG_INPUT_TOUCHSCREEN=y
++CONFIG_TOUCHSCREEN_SILEAD=y
+ CONFIG_INPUT_MISC=y
+ CONFIG_INPUT_GPIO_BEEPER=y
+ CONFIG_RC_CORE=y
+@@ -72,3 +74,4 @@ CONFIG_PRINTK_TIME=y
+ CONFIG_MAGIC_SYSRQ=y
+ CONFIG_CMDLINE="console=ttySAC0,115200n8 earlycon=s5p6818,mmio,0xc00a1000"
+ CONFIG_CMDLINE_FROM_BOOTLOADER=y
++CONFIG_GPIOLIB_IRQCHIP=y
+diff --git a/drivers/pinctrl/nexell/Kconfig b/drivers/pinctrl/nexell/Kconfig
+index 31399481a..26347031a 100644
+--- a/drivers/pinctrl/nexell/Kconfig
++++ b/drivers/pinctrl/nexell/Kconfig
+@@ -10,6 +10,7 @@ config PINCTRL_NEXELL
+ 	select GENERIC_PINCTRL_GROUPS
+ 	select GENERIC_PINMUX_FUNCTIONS
+ 	select GPIOLIB
++	select GPIOLIB_IRQCHIP
+ 	default y
+ 	help
+ 	  Enable pin multiplexing, pin configuration, and GPIO support for
+diff --git a/drivers/pinctrl/nexell/pinctrl-s5p6818.c b/drivers/pinctrl/nexell/pinctrl-s5p6818.c
+index a1e717d39..bd8c5d822 100644
+--- a/drivers/pinctrl/nexell/pinctrl-s5p6818.c
++++ b/drivers/pinctrl/nexell/pinctrl-s5p6818.c
+@@ -12,10 +12,13 @@
+ #include <linux/err.h>
+ #include <linux/gpio/driver.h>
+ #include <linux/io.h>
++#include <linux/irq.h>
++#include <linux/irqchip/chained_irq.h>
+ #include <linux/kernel.h>
+ #include <linux/module.h>
+ #include <linux/of.h>
+ #include <linux/of_device.h>
++#include <linux/of_irq.h>
+ #include <linux/platform_device.h>
+ #include <linux/pinctrl/pinconf.h>
+ #include <linux/pinctrl/pinconf-generic.h>
+@@ -36,6 +39,12 @@
+ 
+ #define GPIO_OUT		0x00
+ #define GPIO_OUTENB		0x04
++#define GPIO_DETMODE0		0x08
++#define GPIO_DETMODE1		0x0c
++#define GPIO_INTENB		0x10
++#define GPIO_DET		0x14
++#define GPIO_DETMODEEX		0x28
++#define GPIO_DETENB		0x3c
+ #define GPIO_PAD		0x18
+ #define GPIO_ALTFN0		0x20
+ #define GPIO_ALTFN1		0x24
+@@ -71,6 +80,7 @@ enum nexell_pinconf_param {
+ 
+ struct nexell_gpio_bank {
+ 	struct gpio_chip gc;
++	struct irq_chip irq_chip;
+ 	struct pinctrl_gpio_range range;
+ 	void __iomem *base;
+ 	unsigned int pin_base;
+@@ -78,6 +88,7 @@ struct nexell_gpio_bank {
+ 	const char *name;
+ 	u8 index;
+ 	bool alive;
++	bool has_irq;
+ 	spinlock_t lock;
+ };
+ 
+@@ -832,6 +843,161 @@ static int nexell_gpio_direction_output(struct gpio_chip *gc,
+ 	return 0;
+ }
+ 
++/*
++ * GPIO interrupt support.  Each GPIOA..GPIOE bank has one combined
++ * interrupt line to the GIC with per-pin pending in GPIOxDET, a
++ * per-pin enable pair in GPIOxINTENB/GPIOxDETENB and a 3-bit detect
++ * mode in GPIOxDETMODE[x]/GPIOxDETMODEEX matching the vendor
++ * NX_GPIO_INTMODE encoding (0=low, 1=high, 2=falling, 3=rising,
++ * 4=both edges).
++ */
++static void nexell_gpio_irq_ack(struct irq_data *d)
++{
++	struct nexell_gpio_bank *bank = gpiochip_get_data(
++		irq_data_get_irq_chip_data(d));
++
++	writel(BIT(d->hwirq), bank->base + GPIO_DET);
++}
++
++static void nexell_gpio_irq_set_enable(struct irq_data *d, bool enable)
++{
++	struct nexell_gpio_bank *bank = gpiochip_get_data(
++		irq_data_get_irq_chip_data(d));
++	unsigned long flags;
++	u32 value;
++
++	spin_lock_irqsave(&bank->lock, flags);
++	value = readl(bank->base + GPIO_INTENB);
++	value &= ~BIT(d->hwirq);
++	if (enable)
++		value |= BIT(d->hwirq);
++	writel(value, bank->base + GPIO_INTENB);
++
++	value = readl(bank->base + GPIO_DETENB);
++	value &= ~BIT(d->hwirq);
++	if (enable)
++		value |= BIT(d->hwirq);
++	writel(value, bank->base + GPIO_DETENB);
++	spin_unlock_irqrestore(&bank->lock, flags);
++}
++
++static void nexell_gpio_irq_mask(struct irq_data *d)
++{
++	nexell_gpio_irq_set_enable(d, false);
++}
++
++static void nexell_gpio_irq_unmask(struct irq_data *d)
++{
++	nexell_gpio_irq_set_enable(d, true);
++}
++
++static int nexell_gpio_irq_set_type(struct irq_data *d, unsigned int type)
++{
++	struct nexell_gpio_bank *bank = gpiochip_get_data(
++		irq_data_get_irq_chip_data(d));
++	unsigned int offset = d->hwirq;
++	unsigned long flags;
++	u32 mode, value;
++
++	switch (type) {
++	case IRQ_TYPE_LEVEL_LOW:
++		mode = 0;
++		break;
++	case IRQ_TYPE_LEVEL_HIGH:
++		mode = 1;
++		break;
++	case IRQ_TYPE_EDGE_FALLING:
++		mode = 2;
++		break;
++	case IRQ_TYPE_EDGE_RISING:
++		mode = 3;
++		break;
++	case IRQ_TYPE_EDGE_BOTH:
++		mode = 4;
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	spin_lock_irqsave(&bank->lock, flags);
++	value = readl(offset < 16 ? bank->base + GPIO_DETMODE0 :
++				    bank->base + GPIO_DETMODE1);
++	value &= ~(0x3 << ((offset % 16) * 2));
++	value |= (mode & 0x3) << ((offset % 16) * 2);
++	writel(value, offset < 16 ? bank->base + GPIO_DETMODE0 :
++				    bank->base + GPIO_DETMODE1);
++
++	value = readl(bank->base + GPIO_DETMODEEX);
++	value &= ~BIT(offset);
++	if (mode & 0x4)
++		value |= BIT(offset);
++	writel(value, bank->base + GPIO_DETMODEEX);
++
++	writel(BIT(offset), bank->base + GPIO_DET);
++	spin_unlock_irqrestore(&bank->lock, flags);
++
++	irq_set_handler_locked(d, (type & IRQ_TYPE_EDGE_BOTH) ?
++			       handle_edge_irq : handle_level_irq);
++
++	return 0;
++}
++
++static void nexell_gpio_irq_handler(struct irq_desc *desc)
++{
++	struct nexell_gpio_bank *bank = irq_desc_get_handler_data(desc);
++	struct irq_chip *chip = irq_desc_get_chip(desc);
++	unsigned long pending;
++	unsigned int offset;
++
++	chained_irq_enter(chip, desc);
++
++	pending = readl(bank->base + GPIO_DET);
++	writel(pending, bank->base + GPIO_DET);
++	for_each_set_bit(offset, &pending, bank->npins)
++		generic_handle_domain_irq(bank->gc.irq.domain, offset);
++
++	chained_irq_exit(chip, desc);
++}
++
++static int nexell_register_gpio_irq(struct nexell_pinctrl *pc,
++				    struct nexell_gpio_bank *bank,
++				    struct device_node *np,
++				    unsigned int index)
++{
++	struct gpio_irq_chip *girq;
++	struct device *dev = pc->dev;
++	struct irq_chip *chip = &bank->irq_chip;
++	int irq;
++
++	irq = platform_get_irq_optional(to_platform_device(dev), index);
++	if (irq < 0)
++		return irq == -ENXIO ? 0 : irq;
++
++	chip->name = devm_kasprintf(dev, GFP_KERNEL, "%s-irq", bank->name);
++	if (!chip->name)
++		return -ENOMEM;
++	chip->irq_ack = nexell_gpio_irq_ack;
++	chip->irq_mask = nexell_gpio_irq_mask;
++	chip->irq_unmask = nexell_gpio_irq_unmask;
++	chip->irq_set_type = nexell_gpio_irq_set_type;
++
++	girq = &bank->gc.irq;
++	girq->chip = chip;
++	girq->handler = handle_bad_irq;
++	girq->default_type = IRQ_TYPE_NONE;
++	girq->num_parents = 1;
++	girq->parents = devm_kcalloc(dev, 1, sizeof(*girq->parents),
++				     GFP_KERNEL);
++	if (!girq->parents)
++		return -ENOMEM;
++	girq->parents[0] = irq;
++	girq->parent_handler = nexell_gpio_irq_handler;
++	girq->parent_handler_data = bank;
++
++	bank->has_irq = true;
++	return 0;
++}
++
+ static int nexell_add_functions(struct nexell_pinctrl *pc,
+ 				struct device_node *parent)
+ {
+@@ -919,6 +1085,12 @@ static int nexell_register_gpio(struct nexell_pinctrl *pc,
+ 	bank->gc.of_xlate = nexell_gpio_of_xlate;
+ #endif
+ 
++	if (!bank->alive) {
++		ret = nexell_register_gpio_irq(pc, bank, np, index);
++		if (ret)
++			return ret;
++	}
++
+ 	ret = devm_gpiochip_add_data(pc->dev, &bank->gc, bank);
+ 	if (ret)
+ 		return ret;
+-- 
+2.43.0
+
+
+From ad6805e53b31aeccc7ad4e639c957f712d4fbaf6 Mon Sep 17 00:00:00 2001
+From: liy <12697416+oroliy@users.noreply.github.com>
+Date: Sat, 12 Sep 2026 12:41:45 +0800
+Subject: [PATCH 18/18] Input: silead - skip post-fw chip reset and pulse
+ reset-gpio at probe
+
+Two GSL1680 panel-firmware fixes, verified on the x6818 board whose
+touch controller answers at 0x40:
+
+- Once the vendor firmware is running, the chip NAKs the
+  SILEAD_CMD_RESET (0x88) byte at SILEAD_REG_RESET while accepting
+  every other init write.  Split the post-firmware configuration out
+  of silead_ts_init into silead_ts_configure so the destructive reset
+  is issued only before the firmware download.
+
+- The chip keeps its firmware across warm reboots; a stale
+  running-firmware state also NAKs the pre-firmware reset.  Mirror the
+  vendor sequence and hold the optional reset-gpios pin low for 20 ms
+  then high for 20 ms before any I2C traffic.
+---
+ drivers/input/touchscreen/silead.c | 89 +++++++++++++++++++++++++-----
+ 1 file changed, 75 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/input/touchscreen/silead.c b/drivers/input/touchscreen/silead.c
+index 5ccc96764..9fc15db5f 100644
+--- a/drivers/input/touchscreen/silead.c
++++ b/drivers/input/touchscreen/silead.c
+@@ -66,6 +66,7 @@ enum silead_ts_power {
+ struct silead_ts_data {
+ 	struct i2c_client *client;
+ 	struct gpio_desc *gpio_power;
++	struct gpio_desc *gpio_reset;
+ 	struct input_dev *input;
+ 	struct input_dev *pen_input;
+ 	struct regulator_bulk_data regulators[2];
+@@ -312,33 +313,68 @@ static void silead_ts_read_data(struct i2c_client *client)
+ 	input_sync(input);
+ }
+ 
+-static int silead_ts_init(struct i2c_client *client)
++static int silead_ts_configure(struct i2c_client *client)
+ {
++	struct device *dev = &client->dev;
+ 	int error;
+ 
+-	error = i2c_smbus_write_byte_data(client, SILEAD_REG_RESET,
+-					  SILEAD_CMD_RESET);
+-	if (error)
+-		goto i2c_write_err;
+-	usleep_range(SILEAD_CMD_SLEEP_MIN, SILEAD_CMD_SLEEP_MAX);
+-
++	/*
++	 * Number of supported touches, clock and start.  This is the
++	 * post-firmware part of silead_ts_init: once the firmware is
++	 * running, some panels (e.g. GSL1680 with vendor config) NAK the
++	 * SILEAD_CMD_RESET (0x88) byte at SILEAD_REG_RESET, so the
++	 * destructive reset must not be reissued after silead_ts_load_fw.
++	 */
+ 	error = i2c_smbus_write_byte_data(client, SILEAD_REG_TOUCH_NR,
+ 					  SILEAD_MAX_FINGERS);
+-	if (error)
+-		goto i2c_write_err;
++	if (error) {
++		dev_err(dev, "Post-fw touch-nr error %d\n", error);
++		return error;
++	}
+ 	usleep_range(SILEAD_CMD_SLEEP_MIN, SILEAD_CMD_SLEEP_MAX);
+ 
+ 	error = i2c_smbus_write_byte_data(client, SILEAD_REG_CLOCK,
+ 					  SILEAD_CLOCK);
+-	if (error)
+-		goto i2c_write_err;
++	if (error) {
++		dev_err(dev, "Post-fw clock error %d\n", error);
++		return error;
++	}
+ 	usleep_range(SILEAD_CMD_SLEEP_MIN, SILEAD_CMD_SLEEP_MAX);
+ 
+ 	error = i2c_smbus_write_byte_data(client, SILEAD_REG_RESET,
+ 					  SILEAD_CMD_START);
++	if (error) {
++		dev_err(dev, "Post-fw start error %d\n", error);
++		return error;
++	}
++	usleep_range(SILEAD_CMD_SLEEP_MIN, SILEAD_CMD_SLEEP_MAX);
++
++	return 0;
++}
++
++static int silead_ts_init(struct i2c_client *client)
++{
++	int error;
++
++	/*
++	 * Reset the chip, then configure finger count, clock and start.
++	 * The SILEAD_CMD_RESET (0x88) write is tolerated to fail: some
++	 * panels (e.g. GSL1680 with vendor-supplied firmware) NAK it
++	 * while accepting every other register write, and the vendor
++	 * driver ignores all write errors outright.
++	 */
++	error = i2c_smbus_write_byte_data(client, SILEAD_REG_RESET,
++					  SILEAD_CMD_RESET);
++	if (error)
++		dev_warn(&client->dev,
++			 "Chip reset write error %d ignored, continuing\n",
++			 error);
++	else
++		usleep_range(SILEAD_CMD_SLEEP_MIN, SILEAD_CMD_SLEEP_MAX);
++
++	error = silead_ts_configure(client);
+ 	if (error)
+ 		goto i2c_write_err;
+-	usleep_range(SILEAD_CMD_SLEEP_MIN, SILEAD_CMD_SLEEP_MAX);
+ 
+ 	return 0;
+ 
+@@ -351,11 +387,17 @@ static int silead_ts_reset(struct i2c_client *client)
+ {
+ 	int error;
+ 
++	/* Same tolerance as silead_ts_init: the 0x88 reset byte may be
++	 * NAKed by a running firmware while everything else works.
++	 */
+ 	error = i2c_smbus_write_byte_data(client, SILEAD_REG_RESET,
+ 					  SILEAD_CMD_RESET);
+ 	if (error)
+-		goto i2c_write_err;
+-	usleep_range(SILEAD_CMD_SLEEP_MIN, SILEAD_CMD_SLEEP_MAX);
++		dev_warn(&client->dev,
++			 "Chip reset write error %d ignored, continuing\n",
++			 error);
++	else
++		usleep_range(SILEAD_CMD_SLEEP_MIN, SILEAD_CMD_SLEEP_MAX);
+ 
+ 	error = i2c_smbus_write_byte_data(client, SILEAD_REG_CLOCK,
+ 					  SILEAD_CLOCK);
+@@ -701,6 +743,25 @@ static int silead_ts_probe(struct i2c_client *client)
+ 		return dev_err_probe(dev, PTR_ERR(data->gpio_power),
+ 				     "Shutdown GPIO request failed\n");
+ 
++	/*
++	 * Reset GPIO pin.  The GSL series keep their downloaded firmware
++	 * across warm reboots; without a hardware reset pulse the chip may
++	 * sit in the running-firmware state where the SILEAD_CMD_RESET byte
++	 * is NAKed.  Mirror the vendor sequence: hold low 20 ms, release
++	 * high, wait 20 ms before any I2C traffic.
++	 */
++	data->gpio_reset = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_HIGH);
++	if (IS_ERR(data->gpio_reset))
++		return dev_err_probe(dev, PTR_ERR(data->gpio_reset),
++				     "Reset GPIO request failed\n");
++
++	if (data->gpio_reset) {
++		gpiod_set_value_cansleep(data->gpio_reset, 0);
++		msleep(20);
++		gpiod_set_value_cansleep(data->gpio_reset, 1);
++		msleep(20);
++	}
++
+ 	error = silead_ts_setup(client);
+ 	if (error)
+ 		return error;
 -- 
 2.43.0
 
