@@ -2,138 +2,324 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # Copyright (C) 2026 x6818 port
-# One-click recovery and eMMC installer for Nexell S5P6818 (x6818).
-#
-# Usage:
-#   x6818-flash-emmc <image_path.img[.gz]> [target_block_dev]
-#
-# Features:
-# - Validates image MBR signature (0x55aa)
-# - Validates NSIH magic (0x4849534e) and enforces eMMC Boot Channel 2
-# - Auto-detects target eMMC device (defaults to /dev/mmcblk0 or candidate eMMC)
-# - Protects running boot media (refuses to overwrite running rootfs disk)
-# - Streams decompression and raw sector-accurate write with fsync
-# - Performs post-write readback verification of MBR and NSIH headers
+# Whole-disk eMMC installer for Nexell S5P6818 (x6818).
 
 set -eu
 
-if [ $# -lt 1 ]; then
-    echo "Usage: $0 <image.img[.gz]> [target_emmc_dev]" >&2
-    echo "Example: $0 /tmp/openwrt-nexell-s5p6818_arm64-emmc.img.gz" >&2
-    exit 1
+usage() {
+	echo "Usage: $0 IMAGE TARGET COMPRESSED_SHA256 EXPANDED_SIZE EXPANDED_SHA256" >&2
+	echo "Example: $0 /tmp/openwrt-emmc.img.gz /dev/mmcblk0 <sha256> <bytes> <sha256>" >&2
+}
+
+if [ "$#" -ne 5 ]; then
+	usage
+	exit 1
 fi
 
 IMAGE="$1"
-TARGET_DEV="${2:-}"
+TARGET_DEV="$2"
+EXPECTED_COMPRESSED_SHA256="$3"
+EXPECTED_SIZE="$4"
+EXPECTED_EXPANDED_SHA256="$5"
+MOUNTS_FILE="${X6818_PROC_MOUNTS:-/proc/mounts}"
+SYS_CLASS_BLOCK="${X6818_SYS_CLASS_BLOCK:-/sys/class/block}"
 
 if [ ! -f "$IMAGE" ]; then
-    echo "Error: image file '$IMAGE' not found" >&2
-    exit 1
+	echo "Error: image file '$IMAGE' not found" >&2
+	exit 1
 fi
 
-# Detect decompression method
-decompress_cat() {
-    local magic
-    magic="$(dd if="$1" bs=2 count=1 2>/dev/null | hexdump -v -n 2 -e '1/1 "%02x"')"
-    case "$magic" in
-        1f8b) zcat "$1" ;;
-        *)    cat "$1" ;;
-    esac
+for required_tool in awk cat dd gzip head hexdump mkfifo mktemp readlink \
+	sha256sum sync zcat; do
+	if ! command -v "$required_tool" >/dev/null 2>&1; then
+		echo "Error: Required tool '$required_tool' is missing" >&2
+		exit 1
+	fi
+done
+
+valid_sha256() {
+	[ "${#1}" -eq 64 ] || return 1
+	case "$1" in
+		*[!0-9a-f]*) return 1 ;;
+	esac
 }
 
+valid_sha256 "$EXPECTED_COMPRESSED_SHA256" || {
+	echo "Error: COMPRESSED_SHA256 must be 64 lowercase hexadecimal characters" >&2
+	exit 1
+}
+valid_sha256 "$EXPECTED_EXPANDED_SHA256" || {
+	echo "Error: EXPANDED_SHA256 must be 64 lowercase hexadecimal characters" >&2
+	exit 1
+}
+case "$EXPECTED_SIZE" in
+	''|*[!0-9]*)
+		echo "Error: EXPANDED_SIZE must be a positive decimal byte count" >&2
+		exit 1
+		;;
+esac
+if [ "$EXPECTED_SIZE" -le 0 ]; then
+	echo "Error: EXPANDED_SIZE must be greater than zero" >&2
+	exit 1
+fi
+
+actual_compressed_sha256="$(sha256sum "$IMAGE" | awk '{ print $1 }')"
+if [ "$actual_compressed_sha256" != "$EXPECTED_COMPRESSED_SHA256" ]; then
+	echo "Error: Input image SHA-256 mismatch" >&2
+	echo "Expected: $EXPECTED_COMPRESSED_SHA256" >&2
+	echo "Actual:   $actual_compressed_sha256" >&2
+	exit 1
+fi
+
+image_magic="$(dd if="$IMAGE" bs=2 count=1 2>/dev/null | hexdump -v -n 2 -e '1/1 "%02x"')"
+decompress_cat() {
+	case "$image_magic" in
+		1f8b) exec zcat "$1" ;;
+		*) exec cat "$1" ;;
+	esac
+}
+
+if [ "$image_magic" = "1f8b" ]; then
+	if ! gzip -t "$IMAGE"; then
+		echo "Error: Compressed image integrity check failed" >&2
+		exit 1
+	fi
+else
+	if [ "$EXPECTED_COMPRESSED_SHA256" != "$EXPECTED_EXPANDED_SHA256" ]; then
+		echo "Error: Raw image compressed and expanded SHA-256 values differ" >&2
+		exit 1
+	fi
+fi
+
+header_tmp="$(mktemp -t x6818_hdr.XXXXXX)"
+stream_fifo="$(mktemp -t x6818_stream.XXXXXX)"
+rm -f "$stream_fifo"
+digest_tmp="$(mktemp -t x6818_digest.XXXXXX)"
+producer_pid=""
+consumer_pid=""
+cleanup() {
+	if [ -n "$producer_pid" ]; then
+		kill "$producer_pid" 2>/dev/null || true
+	fi
+	if [ -n "$consumer_pid" ]; then
+		kill "$consumer_pid" 2>/dev/null || true
+	fi
+	[ -z "$producer_pid" ] || wait "$producer_pid" 2>/dev/null || true
+	[ -z "$consumer_pid" ] || wait "$consumer_pid" 2>/dev/null || true
+	rm -f "$header_tmp" "$stream_fifo" "$digest_tmp"
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+
 echo "==> Verifying image header and partition structure..."
-# Read first 1024 bytes (MBR + NSIH header)
-header_tmp="$(mktemp -t x6818_hdr.XXXXXX 2>/dev/null || echo "/tmp/x6818_hdr.$$.bin")"
-trap 'rm -f "$header_tmp"' EXIT
+# gzip integrity and the complete compressed-file hash were checked above.
+# The prefix producer can receive SIGPIPE after dd has the required 1024 bytes.
+mkfifo "$stream_fifo"
+decompress_cat "$IMAGE" > "$stream_fifo" &
+producer_pid="$!"
+dd if="$stream_fifo" of="$header_tmp" bs=512 count=2 2>/dev/null &
+consumer_pid="$!"
+set +e
+wait "$consumer_pid"
+consumer_rc="$?"
+consumer_pid=""
+kill "$producer_pid" 2>/dev/null || true
+wait "$producer_pid" 2>/dev/null
+producer_pid=""
+set -e
+rm -f "$stream_fifo"
+if [ "$consumer_rc" -ne 0 ]; then
+	echo "Error: Could not read the image header" >&2
+	exit 1
+fi
 
-decompress_cat "$IMAGE" | dd of="$header_tmp" bs=512 count=2 2>/dev/null
-
-# Check MBR signature at offset 510
 mbr_sig="$(dd if="$header_tmp" bs=1 skip=510 count=2 2>/dev/null | hexdump -v -n 2 -e '1/1 "%02x"')"
 if [ "$mbr_sig" != "55aa" ]; then
-    echo "Error: Image is missing valid MBR signature (got '$mbr_sig', expected '55aa')" >&2
-    exit 1
+	echo "Error: Image is missing valid MBR signature (got '$mbr_sig', expected '55aa')" >&2
+	exit 1
 fi
 
-# Check NSIH magic at offset 0x1fc of Sector 1 (offset 0x200 + 0x1fc = 0x3fc)
 nsih_magic="$(dd if="$header_tmp" bs=1 skip=1020 count=4 2>/dev/null | hexdump -v -n 4 -e '1/1 "%02x"')"
-if [ "$nsih_magic" != "4e534948" ]; then # little endian 0x4849534e in byte order: 4e 53 49 48
-    echo "Error: Image Sector 1 missing valid NSIH magic (got '$nsih_magic', expected '4e534948')" >&2
-    exit 1
+if [ "$nsih_magic" != "4e534948" ]; then
+	echo "Error: Image Sector 1 missing valid NSIH magic (got '$nsih_magic', expected '4e534948')" >&2
+	exit 1
 fi
 
-# Check NSIH channel at offset 0x50 of Sector 1 (offset 0x200 + 0x50 = 0x250)
-# PortNumber for eMMC must be 2.
 nsih_chan="$(dd if="$header_tmp" bs=1 skip=592 count=1 2>/dev/null | hexdump -v -n 1 -e '1/1 "%d"')"
 if [ "$nsih_chan" -ne 2 ]; then
-    echo "Error: Image firmware is targeted for Boot Channel $nsih_chan, NOT eMMC Channel 2!" >&2
-    echo "Refusing to flash SD image (channel 0) to eMMC." >&2
-    exit 1
+	echo "Error: Image firmware is targeted for Boot Channel $nsih_chan, not eMMC Channel 2" >&2
+	exit 1
 fi
+echo "Image check OK: valid MBR, NSIH magic, and eMMC Channel 2."
 
-echo "Image check OK: Valid MBR, NSIH magic 0x4849534e, eMMC Channel 2 confirmed."
-
-# Determine target device if not specified
-if [ -z "$TARGET_DEV" ]; then
-    # Look for mmcblk0 or mmcblk1
-    for dev in /dev/mmcblk0 /dev/mmcblk1 /dev/mmcblk2; do
-        if [ -b "$dev" ]; then
-            # Exclude currently mounted root disk
-            if grep -q "${dev##*/}p" /proc/mounts 2>/dev/null || grep -q "$dev" /proc/cmdline 2>/dev/null; then
-                continue
-            fi
-            TARGET_DEV="$dev"
-            break
-        fi
-    done
+if [ ! -b "$TARGET_DEV" ] && [ ! -f "$TARGET_DEV" ]; then
+	echo "Error: Explicit target '$TARGET_DEV' is neither a block device nor a regular file" >&2
+	exit 1
 fi
-
-if [ -z "$TARGET_DEV" ] || { [ ! -b "$TARGET_DEV" ] && [ ! -f "$TARGET_DEV" ]; }; then
-    echo "Error: Could not auto-detect target eMMC device, or specified device '$TARGET_DEV' is invalid" >&2
-    echo "Available block devices:" >&2
-    ls -l /dev/mmcblk* 2>/dev/null || true
-    exit 1
+TARGET_REAL="$(readlink -f "$TARGET_DEV")"
+if [ -z "$TARGET_REAL" ] || { [ ! -b "$TARGET_REAL" ] && [ ! -f "$TARGET_REAL" ]; }; then
+	echo "Error: Could not resolve explicit target '$TARGET_DEV'" >&2
+	exit 1
 fi
+target_name="${TARGET_REAL##*/}"
+target_sysfs="$SYS_CLASS_BLOCK/$target_name"
 
-echo "Target device: $TARGET_DEV"
-
-# Refuse if target device is currently the active root filesystem disk
-root_part="$(awk '$2 == "/" { print $1 }' /proc/mounts 2>/dev/null || true)"
-case "$root_part" in
-    "$TARGET_DEV"*)
-        echo "Error: Target device '$TARGET_DEV' is currently mounted as root ($root_part)!" >&2
-        echo "Refusing to destroy running system." >&2
-        exit 1
-        ;;
+case "$target_name" in
+	mmcblk[0-9]*boot[0-9]*|mmcblk[0-9]*rpmb)
+		echo "Error: Target '$TARGET_REAL' is an eMMC hardware boot/RPMB area, not the user area" >&2
+		exit 1
+		;;
 esac
 
-echo "==> Flashing image '$IMAGE' to '$TARGET_DEV'..."
-decompress_cat "$IMAGE" | dd of="$TARGET_DEV" bs=4M conv=fsync status=progress
+if [ -e "$target_sysfs/partition" ]; then
+	echo "Error: Target '$TARGET_REAL' is a partition, not a whole eMMC device" >&2
+	exit 1
+fi
+
+if [ -b "$TARGET_REAL" ]; then
+	case "$target_name" in
+		mmcblk*) target_number="${target_name#mmcblk}" ;;
+		*) target_number="" ;;
+	esac
+	case "$target_number" in
+		''|*[!0-9]*)
+			echo "Error: Target '$TARGET_REAL' is not an eMMC user-area whole-disk node" >&2
+			exit 1
+			;;
+	esac
+	if [ ! -r "$target_sysfs/device/type" ] || [ ! -r "$target_sysfs/size" ]; then
+		echo "Error: Cannot verify target type and capacity in '$target_sysfs'" >&2
+		exit 1
+	fi
+fi
+if [ -r "$target_sysfs/device/type" ]; then
+	target_type="$(cat "$target_sysfs/device/type")"
+	if [ "$target_type" != "MMC" ]; then
+		echo "Error: Target '$TARGET_REAL' is type '$target_type', not eMMC type 'MMC'" >&2
+		exit 1
+	fi
+fi
+if [ -r "$target_sysfs/size" ]; then
+	target_sectors="$(cat "$target_sysfs/size")"
+	case "$target_sectors" in
+		''|*[!0-9]*)
+			echo "Error: Invalid target sector count '$target_sectors'" >&2
+			exit 1
+			;;
+	esac
+	required_sectors="$(((EXPECTED_SIZE + 511) / 512))"
+	if [ "$required_sectors" -gt "$target_sectors" ]; then
+		echo "Error: Expanded image ($EXPECTED_SIZE bytes) exceeds target ($target_sectors sectors)" >&2
+		exit 1
+	fi
+fi
+
+if awk -v dev="$TARGET_REAL" '
+	index($1, dev) == 1 {
+		suffix = substr($1, length(dev) + 1)
+		if (suffix == "" || suffix ~ /^p?[0-9]+$/)
+			found = 1
+	}
+	END { exit found ? 0 : 1 }
+' "$MOUNTS_FILE"; then
+	echo "Error: Target '$TARGET_REAL' or one of its partitions is mounted" >&2
+	exit 1
+fi
+
+echo "Target device: $TARGET_REAL"
+echo "Expected expanded image: $EXPECTED_SIZE bytes, SHA-256 $EXPECTED_EXPANDED_SHA256"
+
+if [ "$image_magic" = "1f8b" ]; then
+	echo "==> Verifying complete expanded-image SHA-256 before write..."
+	mkfifo "$stream_fifo"
+	decompress_cat "$IMAGE" > "$stream_fifo" &
+	producer_pid="$!"
+	sha256sum < "$stream_fifo" > "$digest_tmp" &
+	consumer_pid="$!"
+	set +e
+	wait "$consumer_pid"
+	consumer_rc="$?"
+	consumer_pid=""
+	wait "$producer_pid"
+	producer_rc="$?"
+	producer_pid=""
+	set -e
+	rm -f "$stream_fifo"
+	if [ "$producer_rc" -ne 0 ] || [ "$consumer_rc" -ne 0 ]; then
+		echo "Error: Expanded-image verification stream failed (producer=$producer_rc, hasher=$consumer_rc)" >&2
+		exit 1
+	fi
+	actual_expanded_sha256="$(awk '{ print $1 }' "$digest_tmp")"
+	if [ "$actual_expanded_sha256" != "$EXPECTED_EXPANDED_SHA256" ]; then
+		echo "Error: Expanded image SHA-256 mismatch before write" >&2
+		echo "Expected: $EXPECTED_EXPANDED_SHA256" >&2
+		echo "Actual:   $actual_expanded_sha256" >&2
+		exit 1
+	fi
+fi
+
+echo "==> Flashing '$IMAGE' to '$TARGET_REAL'..."
+mkfifo "$stream_fifo"
+decompress_cat "$IMAGE" > "$stream_fifo" &
+producer_pid="$!"
+dd if="$stream_fifo" of="$TARGET_REAL" bs=4M conv=fsync status=progress &
+consumer_pid="$!"
+set +e
+wait "$consumer_pid"
+consumer_rc="$?"
+consumer_pid=""
+wait "$producer_pid"
+producer_rc="$?"
+producer_pid=""
+set -e
+rm -f "$stream_fifo"
+if [ "$producer_rc" -ne 0 ] || [ "$consumer_rc" -ne 0 ]; then
+	echo "Error: Image write stream failed (producer=$producer_rc, writer=$consumer_rc)" >&2
+	exit 1
+fi
 
 sync
-echo "==> Verifying written headers on '$TARGET_DEV'..."
+echo "==> Verifying complete payload on '$TARGET_REAL'..."
+mkfifo "$stream_fifo"
+head -c "$EXPECTED_SIZE" "$TARGET_REAL" > "$stream_fifo" &
+producer_pid="$!"
+sha256sum < "$stream_fifo" > "$digest_tmp" &
+consumer_pid="$!"
+set +e
+wait "$consumer_pid"
+consumer_rc="$?"
+consumer_pid=""
+wait "$producer_pid"
+producer_rc="$?"
+producer_pid=""
+set -e
+rm -f "$stream_fifo"
+if [ "$producer_rc" -ne 0 ] || [ "$consumer_rc" -ne 0 ]; then
+	echo "Error: Full readback stream failed (reader=$producer_rc, hasher=$consumer_rc)" >&2
+	exit 1
+fi
+readback_sha256="$(awk '{ print $1 }' "$digest_tmp")"
+if [ "$readback_sha256" != "$EXPECTED_EXPANDED_SHA256" ]; then
+	echo "Error: Full readback SHA-256 mismatch" >&2
+	echo "Expected: $EXPECTED_EXPANDED_SHA256" >&2
+	echo "Readback: $readback_sha256" >&2
+	exit 1
+fi
+echo "Full readback SHA-256 verified: $readback_sha256"
 
-# Verify written MBR
-rb_mbr="$(dd if="$TARGET_DEV" bs=1 skip=510 count=2 2>/dev/null | hexdump -v -n 2 -e '1/1 "%02x"')"
-if [ "$rb_mbr" != "55aa" ]; then
-    echo "Error: Post-write MBR verification failed!" >&2
-    exit 1
+rb_mbr="$(dd if="$TARGET_REAL" bs=1 skip=510 count=2 2>/dev/null | hexdump -v -n 2 -e '1/1 "%02x"')"
+rb_nsih="$(dd if="$TARGET_REAL" bs=1 skip=1020 count=4 2>/dev/null | hexdump -v -n 4 -e '1/1 "%02x"')"
+if [ "$rb_mbr" != "55aa" ] || [ "$rb_nsih" != "4e534948" ]; then
+	echo "Error: Post-write MBR or NSIH verification failed" >&2
+	exit 1
 fi
 
-# Verify written NSIH magic
-rb_nsih="$(dd if="$TARGET_DEV" bs=1 skip=1020 count=4 2>/dev/null | hexdump -v -n 4 -e '1/1 "%02x"')"
-if [ "$rb_nsih" != "4e534948" ]; then
-    echo "Error: Post-write NSIH magic verification failed!" >&2
-    exit 1
-fi
-
-# Re-read partition table
 if command -v partx >/dev/null 2>&1; then
-    partx -u "$TARGET_DEV" 2>/dev/null || true
+	partx -u "$TARGET_REAL" 2>/dev/null || true
 fi
 
 echo "============================================================"
-echo " eMMC installation / recovery complete!"
-echo " MBR signature and eMMC Sector 1 firmware verified OK."
-echo " You may now power off the board, remove the SD card, and reboot."
+echo " eMMC installation complete."
+echo " Full payload SHA-256, MBR, and eMMC firmware verified OK."
+echo " Power off the board, remove the SD card, and boot from eMMC."
 echo "============================================================"
