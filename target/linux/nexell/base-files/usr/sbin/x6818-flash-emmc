@@ -115,7 +115,7 @@ echo "==> Verifying image header and partition structure..."
 # gzip integrity and the complete compressed-file hash were checked above.
 # The prefix producer can receive SIGPIPE after dd has the required 1024 bytes.
 mkfifo "$stream_fifo"
-decompress_cat "$IMAGE" > "$stream_fifo" &
+decompress_cat "$IMAGE" > "$stream_fifo" 2>/dev/null &
 producer_pid="$!"
 dd if="$stream_fifo" of="$header_tmp" bs=512 count=2 2>/dev/null &
 consumer_pid="$!"
