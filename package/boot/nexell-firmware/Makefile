@@ -10,7 +10,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=nexell-firmware
 PKG_VERSION:=2026.09.07
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_LICENSE:=GPL-2.0-or-later BSD-3-Clause
 PKG_FLAGS:=nonshared

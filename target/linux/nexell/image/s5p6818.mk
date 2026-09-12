@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
-# Boot flow (uboot-lts): ext4load zImage + dtb, then
+# Boot flow (uboot-lts): filesystem-generic load of zImage + dtb, then
 #   bootz ${loadaddr} - ${dtb_addr}
 # or the raw-sector path: bootm <self-contained FIT @0x48000000>.
 # RAM bring-up milestone: initramfs zImage + separate DTB + uImage artifacts.
