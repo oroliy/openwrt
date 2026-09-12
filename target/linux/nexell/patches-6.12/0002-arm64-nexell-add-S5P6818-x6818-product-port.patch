@@ -1,7 +1,7 @@
 From 7117c8d9d295f89cff76dcd9fc510e4a163cfc8c Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Mon, 31 Aug 2026 23:22:29 +0800
-Subject: [PATCH 01/18] soc: nexell: share S5P6818 drivers across architectures
+Subject: [PATCH 01/19] soc: nexell: share S5P6818 drivers across architectures
 
 Signed-off-by: liy <liygfg@gmail.com>
 ---
@@ -282,7 +282,7 @@ index e47f9a642..2c3fe554d 100644
 From 11e59d6ae75c94c66059ce0823b475abcbbd17a8 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Mon, 31 Aug 2026 23:23:13 +0800
-Subject: [PATCH 02/18] arm64: nexell: add S5P6818 x6818 platform
+Subject: [PATCH 02/19] arm64: nexell: add S5P6818 x6818 platform
 
 Signed-off-by: liy <liygfg@gmail.com>
 ---
@@ -934,7 +934,7 @@ index 000000000..ca2130718
 From 294ac37434cd3c68152103333a743a8572cbd77c Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Mon, 31 Aug 2026 23:23:32 +0800
-Subject: [PATCH 03/18] arm64: nexell: poll queued lock waiters on S5P6818
+Subject: [PATCH 03/19] arm64: nexell: poll queued lock waiters on S5P6818
 
 Signed-off-by: liy <liygfg@gmail.com>
 ---
@@ -1203,7 +1203,7 @@ index 7d96bed71..3b8a41a1c 100644
 From 4d493982f65007f3223f17e65c43cecc0c7d65a8 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Wed, 2 Sep 2026 02:46:13 +0800
-Subject: [PATCH 04/18] arm64: nexell: add experimental timer fallback
+Subject: [PATCH 04/19] arm64: nexell: add experimental timer fallback
 
 Signed-off-by: liy <liygfg@gmail.com>
 ---
@@ -1537,7 +1537,7 @@ index 000000000..fe6b0d157
 From 7129a20b0ed0bdd30935a5e525a45c2f691032d1 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Thu, 3 Sep 2026 22:26:26 +0800
-Subject: [PATCH 05/18] usb: host: ohci-nexell: skip inaccessible shutdown MMIO
+Subject: [PATCH 05/19] usb: host: ohci-nexell: skip inaccessible shutdown MMIO
  on S5P6818
 
 S5P6818 OHCI controller registers become inaccessible during system reboot
@@ -1584,7 +1584,7 @@ index 0804832f0..b1705e450 100644
 From 48f89d3c52c3bc1d047701ba72288e4de207a04c Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Mon, 7 Sep 2026 21:15:49 +0800
-Subject: [PATCH 06/18] arm64: nexell: support get_cycles() via nexell_timer
+Subject: [PATCH 06/19] arm64: nexell: support get_cycles() via nexell_timer
  and auto-heartbeat in watchdog
 
 ---
@@ -1628,7 +1628,7 @@ index 0da26db32..ddece0530 100644
 From 096c04e338f26bd338b4b3c540eaf048fe82085b Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Wed, 9 Sep 2026 20:46:51 +0800
-Subject: [PATCH 07/18] arm64: defconfigs: enable CONFIG_HOTPLUG_CPU and
+Subject: [PATCH 07/19] arm64: defconfigs: enable CONFIG_HOTPLUG_CPU and
  CONFIG_FB_DEVICE
 
 ---
@@ -1683,7 +1683,7 @@ index f620f78e9..d08d23787 100644
 From 87e2c89928963fc0895090c913241bbc11503603 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Thu, 10 Sep 2026 00:41:50 +0800
-Subject: [PATCH 08/18] arm64: dts: nexell: add basic peripherals for x6818
+Subject: [PATCH 08/19] arm64: dts: nexell: add basic peripherals for x6818
  (i2c, gpio-keys, leds, beeper, ir, mmc0, mmc1)
 
 ---
@@ -2044,7 +2044,7 @@ index bdc2bbe44..3764a6fae 100644
 From 31a644ebe7c70b261295d273dce8b923bdbb5223 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Thu, 10 Sep 2026 02:51:32 +0800
-Subject: [PATCH 09/18] arm64: dts & drivers: fix Nexell I2C pinctrl mutual
+Subject: [PATCH 09/19] arm64: dts & drivers: fix Nexell I2C pinctrl mutual
  exclusion and camera pins
 
 ---
@@ -3274,7 +3274,7 @@ index 951b38ff5..ad31632c5 100644
 From b32e7f0367f4cc2cd9c445c01def39899a1e0b17 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Thu, 10 Sep 2026 22:49:14 +0800
-Subject: [PATCH 10/18] arm64: dts: nexell: fix camera enable gpio polarity and
+Subject: [PATCH 10/19] arm64: dts: nexell: fix camera enable gpio polarity and
  regulator hierarchy
 
 ---
@@ -3317,7 +3317,7 @@ index 4992500e5..00952725b 100644
 From a1a4d6f5d572f8451cfbae4a29bf632a6d71fd0e Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Fri, 11 Sep 2026 22:09:12 +0800
-Subject: [PATCH 11/18] arm64: nexell: fix I2C bus clock, pinctrl init order,
+Subject: [PATCH 11/19] arm64: nexell: fix I2C bus clock, pinctrl init order,
  and camera GPIO
 
 clk-s5p6818: add bus_pclk dynamic calculation by reading DVOREG_BUS
@@ -3644,7 +3644,7 @@ index 47685f9be..a1e717d39 100644
 From 2bfabdcbd3bfb86abdc29a3ad75dd44380e225ed Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Sat, 12 Sep 2026 00:44:45 +0800
-Subject: [PATCH 12/18] arm64: configs: enable CONFIG_INPUT_EVDEV=y for input
+Subject: [PATCH 12/19] arm64: configs: enable CONFIG_INPUT_EVDEV=y for input
  event devices
 
 ---
@@ -3670,7 +3670,7 @@ index 3764a6fae..8c762521e 100644
 From 57fe3d5ad613f0146bf53f59dbab7ad20e9a5543 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Sat, 12 Sep 2026 00:59:29 +0800
-Subject: [PATCH 13/18] mmc: dw_mmc: prioritize slot GPIO card detect and
+Subject: [PATCH 13/19] mmc: dw_mmc: prioritize slot GPIO card detect and
  configure x6818 SD slots
 
 - Prioritize gpio_cd in dw_mci_get_cd() over MMC_CAP_NEEDS_POLL so that
@@ -3764,7 +3764,7 @@ index 55158540c..d15fc5458 100644
 From 0d092f14b37c7f375176527741ad13a0d3deede7 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Sat, 12 Sep 2026 02:59:48 +0800
-Subject: [PATCH 14/18] i2c: nexell: add polling completion fallback for
+Subject: [PATCH 14/19] i2c: nexell: add polling completion fallback for
  S5P6818
 
 On x6818 hardware the master-transfer completion IRQ of the Nexell I2C
@@ -3878,7 +3878,7 @@ index 4fccfaefb..37504aead 100644
 From 66146c3e2e2e5282ee567bbc00bd57491d2e71fa Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Sat, 12 Sep 2026 03:54:42 +0800
-Subject: [PATCH 15/18] arm64: dts: nexell: run the x6818 camera I2C bus
+Subject: [PATCH 15/19] arm64: dts: nexell: run the x6818 camera I2C bus
  bit-banged
 
 The S5P6818 hardware I2C controllers do not start transfers in the
@@ -3988,7 +3988,7 @@ index d68b5f860..e4f7adaf1 100644
 From c5efbdeba485731b98194896d1a22f8b2318276a Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Sat, 12 Sep 2026 04:12:35 +0800
-Subject: [PATCH 16/18] arm64: dts: nexell: disable hw i2c0 on x6818, keep
+Subject: [PATCH 16/19] arm64: dts: nexell: disable hw i2c0 on x6818, keep
  bit-banged camera bus
 
 Booting with the i2c-cam bit-banged bus alongside the enabled hardware
@@ -4028,7 +4028,7 @@ index e4f7adaf1..98bbc486f 100644
 From 8c72123093fdc395be9af12f66121ec416cd239f Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Sat, 12 Sep 2026 11:22:33 +0800
-Subject: [PATCH 17/18] pinctrl: nexell: add GPIO interrupt support and x6818
+Subject: [PATCH 17/19] pinctrl: nexell: add GPIO interrupt support and x6818
  touch panel
 
 Add a per-bank gpio irqchip for the GPIOA..GPIOE banks: one combined
@@ -4439,7 +4439,7 @@ index a1e717d39..bd8c5d822 100644
 From ad6805e53b31aeccc7ad4e639c957f712d4fbaf6 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Sat, 12 Sep 2026 12:41:45 +0800
-Subject: [PATCH 18/18] Input: silead - skip post-fw chip reset and pulse
+Subject: [PATCH 18/19] Input: silead - skip post-fw chip reset and pulse
  reset-gpio at probe
 
 Two GSL1680 panel-firmware fixes, verified on the x6818 board whose
@@ -4598,6 +4598,37 @@ index 5ccc96764..9fc15db5f 100644
  	error = silead_ts_setup(client);
  	if (error)
  		return error;
+-- 
+2.43.0
+
+
+From 43ec2faeb888f5721b81dfd9f4d9eebb016e1145 Mon Sep 17 00:00:00 2001
+From: liy <12697416+oroliy@users.noreply.github.com>
+Date: Sat, 12 Sep 2026 16:44:48 +0800
+Subject: [PATCH 19/19] arm64: defconfig: disable FRAMEBUFFER_CONSOLE to
+ preserve U-Boot splash
+
+The kernel's fbcon takes over simplefb at boot ('Console: switching
+to colour frame buffer device') and clears the U-Boot splash, leaving
+a black screen.  The serial console (ttySAC0) remains primary; keep
+FB_SIMPLE for /dev/fb0 userspace access (splash updates, tests).
+---
+ arch/arm64/configs/x6818_arm64_defconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/configs/x6818_arm64_defconfig b/arch/arm64/configs/x6818_arm64_defconfig
+index 6851ddac0..3779f988c 100644
+--- a/arch/arm64/configs/x6818_arm64_defconfig
++++ b/arch/arm64/configs/x6818_arm64_defconfig
+@@ -31,7 +31,7 @@ CONFIG_BLK_DEV_SD=y
+ CONFIG_FB=y
+ CONFIG_FB_DEVICE=y
+ CONFIG_FB_SIMPLE=y
+-CONFIG_FRAMEBUFFER_CONSOLE=y
++# CONFIG_FRAMEBUFFER_CONSOLE is not set
+ CONFIG_VIDEO_NEXELL_S5P6818=y
+ CONFIG_COMMON_CLK_NEXELL=y
+ CONFIG_RESET_NEXELL=y
 -- 
 2.43.0
 
