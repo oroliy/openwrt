@@ -1,0 +1,75 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Automatically grow the root/overlay partition to fill the physical storage device
+# (SD card or eMMC) on first boot.
+
+mounts=${OVERLAY_MOUNTS_FILE:-/proc/mounts}
+mountpoint=${OVERLAY_MOUNTPOINT:-/overlay}
+sysfs_block=${SYS_CLASS_BLOCK:-/sys/class/block}
+
+entry=$(awk -v m="$mountpoint" '$2 == m { print; exit }' "$mounts" 2>/dev/null)
+if [ -z "$entry" ]; then
+	entry=$(awk '$2 == "/" { print; exit }' "$mounts" 2>/dev/null)
+fi
+[ -n "$entry" ] || exit 0
+
+set -- $entry
+backing=$1
+
+test -b "$backing" || exit 0
+
+case "$backing" in
+	/dev/mmcblk*p*)
+		disk="${backing%p*}"
+		part_num="${backing##*p}"
+		;;
+	/dev/sd*[0-9])
+		disk="$(echo "$backing" | sed -E 's/[0-9]+$//')"
+		part_num="$(echo "$backing" | sed -E 's/^.*([0-9]+)$/\1/')"
+		;;
+	*)
+		exit 0
+		;;
+esac
+
+disk_name="${disk#/dev/}"
+part_name="${backing#/dev/}"
+
+disk_size_file="$sysfs_block/$disk_name/size"
+part_start_file="$sysfs_block/$part_name/start"
+part_size_file="$sysfs_block/$part_name/size"
+
+[ -f "$disk_size_file" ] && [ -f "$part_start_file" ] && [ -f "$part_size_file" ] || exit 0
+
+disk_sectors=$(cat "$disk_size_file" 2>/dev/null)
+part_start=$(cat "$part_start_file" 2>/dev/null)
+part_size=$(cat "$part_size_file" 2>/dev/null)
+
+case "$disk_sectors" in ''|*[!0-9]*) exit 0 ;; esac
+case "$part_start" in ''|*[!0-9]*) exit 0 ;; esac
+case "$part_size" in ''|*[!0-9]*) exit 0 ;; esac
+
+part_end=$((part_start + part_size))
+# If unallocated space is less than 20480 sectors (10 MiB), device is already fully allocated
+if [ $((disk_sectors - part_end)) -lt 20480 ]; then
+	logger -t grow-partition "Partition $part_num on $disk already spans the device"
+	exit 0
+fi
+
+command -v sfdisk >/dev/null 2>&1 || {
+	logger -t grow-partition "sfdisk not available; skipping partition expansion"
+	exit 0
+}
+
+logger -t grow-partition "Expanding partition $part_num on $disk to fill device"
+if echo ", +" | sfdisk -N "$part_num" --no-reread "$disk" >/dev/null 2>&1; then
+	if command -v partx >/dev/null 2>&1; then
+		partx -u -n "$part_num" "$disk" >/dev/null 2>&1 || partx -u "$disk" >/dev/null 2>&1 || true
+	fi
+	logger -t grow-partition "Partition $part_num expansion complete"
+	exit 0
+fi
+
+logger -t grow-partition "Partition $part_num expansion failed"
+exit 0

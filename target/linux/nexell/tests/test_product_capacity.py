@@ -43,9 +43,9 @@ def ptgen_root_end(rootfs_mib_value, bootfs_mib_value=None):
 class ProductCapacity(unittest.TestCase):
     def test_seed_fits_measured_capacity_with_tail(self):
         rootfs = seed_mib("CONFIG_TARGET_ROOTFS_PARTSIZE")
-        self.assertEqual(rootfs, 7296)
+        self.assertEqual(rootfs, 512)
         capacity = BOARD_SECTORS * SECTOR
-        self.assertEqual(ptgen_root_end(rootfs), 7424 * 1024 * 1024)
+        self.assertEqual(ptgen_root_end(rootfs), 640 * 1024 * 1024)
         self.assertLessEqual(ptgen_root_end(rootfs), capacity - TAIL)
 
     def test_previous_7360_size_does_not_fit(self):

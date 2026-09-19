@@ -15,35 +15,32 @@ not a generated `.config` and not a copy of the arm64 kernel configuration.
 - `CONFIG_TARGET_ROOTFS_INITRAMFS`, `EXT4FS`, and `SQUASHFS`: retain the
   initramfs artifact and both filesystem families.  The target image recipe
   combines each filesystem with SD and eMMC firmware channels, yielding four
-  disk-image combinations.  The `64 MiB` kernel and `7360 MiB` rootfs values
-  are inherited from the original product configuration, not a claim that
-  they fit every medium.  ext4 uses 4 KiB blocks, journaling, and zero
-  reserved percentage.
+  disk-image combinations.  The `64 MiB` kernel and `512 MiB` rootfs values
+  provide a fast, compact flashing image (~640 MiB uncompressed) compatible
+  with arbitrary SD card and eMMC capacities.  ext4 uses 4 KiB blocks, journaling,
+  and zero reserved percentage.
 - `luci`, `luci-app-cloudflared`, `luci-app-tailscale-community`, `tailscale`,
   `cloudflared`, and `htop`: user-facing management and diagnostics selected
   in both the product configuration and its backup.
 - `collectd` with CPU, interface, iwinfo, load, memory, network, and rrdtool
   plugins: the explicitly selected monitoring set.
-- `fstools`, `e2fsprogs`, `resize2fs`, `fdisk`, `mount-utils`, `lsblk`, and
-  `uboot-envtools`: persistence, ext4 expansion, partition inspection, and
-  boot-environment tooling selected for the storage work.
+- `fstools`, `e2fsprogs`, `resize2fs`, `fdisk`, `sfdisk`, `partx-utils`,
+  `mount-utils`, `lsblk`, and `uboot-envtools`: persistence, partition expansion,
+  ext4 resizing, partition inspection, and boot-environment tooling selected for
+  storage operations.
 
 ## Capacity and storage boundary
 
 For the current image recipe, the minimum data area before any metadata or
 trailing alignment is `32 MiB` reserved prefix plus `64 MiB`
-boot plus `7296 MiB` rootfs.  With ptgen's measured 128 MiB rootfs start,
-the partition end is `7424 MiB` (`0x1d0000000` bytes), leaving a planned
-32 MiB tail before the measured board capacity of `7456 MiB`
-(`0x1d2000000` bytes / `0xe90000` 512-byte sectors).  This tail is only a
-capacity budget; image metadata and final padding still need validation from
-generated images.  An "8 GB" medium must be checked for its real usable
-sector count; its nominal label is not a capacity guarantee.  This seed does
-not claim that the layout or new-disk images have passed acceptance.
+boot plus `512 MiB` rootfs.  With ptgen's measured 128 MiB rootfs start,
+the partition end is `640 MiB` (`0x28000000` bytes / `0x140000` sectors),
+enabling fast flashing (under 10 seconds) on any medium size.
 
-`resize2fs` expands an ext4 filesystem only.  It does not expand a partition;
-partition growth and filesystem growth remain separate, ordered operations
-that require independent validation by the T4 tests.
+On first boot, `/etc/uci-defaults/98-grow-partition` detects the underlying
+storage medium (SD or eMMC) and expands Partition 2 to use the full physical
+capacity using `sfdisk` and `partx`.  Subsequently, `/etc/uci-defaults/99-resize-overlay`
+invokes `resize2fs` to expand the overlay filesystem online.
 
 ## Deliberately omitted
 

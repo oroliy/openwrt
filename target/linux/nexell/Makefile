@@ -11,7 +11,7 @@ SUBTARGETS:=s5p6818 s5p6818_arm64
 
 KERNEL_PATCHVER:=6.12
 
-DEFAULT_PACKAGES += partx-utils mkf2fs e2fsprogs resize2fs
+DEFAULT_PACKAGES += partx-utils mkf2fs e2fsprogs resize2fs sfdisk
 
 include $(INCLUDE_DIR)/target.mk
 
