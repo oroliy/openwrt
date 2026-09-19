@@ -14,6 +14,8 @@ show_splash() {
 }
 
 start() {
+	# The status app owns tty2; painting fb0 would corrupt its console.
+	[ ! -x /usr/sbin/x6818-status-vt ] || return 0
 	show_splash /etc/x6818/splash.raw
 }
 

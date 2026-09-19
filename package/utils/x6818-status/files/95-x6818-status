@@ -1,0 +1,7 @@
+#!/bin/sh
+# One owner per screen. Keep the generic lcd4linux daemon disabled: its
+# default configuration targets an unrelated display and daemonizes.
+/etc/init.d/lcd4linux disable
+/etc/init.d/x6818-splash disable
+/etc/init.d/x6818-status enable
+exit 0

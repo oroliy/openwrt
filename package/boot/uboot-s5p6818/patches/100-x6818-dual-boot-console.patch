@@ -1,0 +1,192 @@
+diff --git a/board/friendlyarm/x6818/board.c b/board/friendlyarm/x6818/board.c
+index 6b4a0c84766..7aea97b31c5 100644
+--- a/board/friendlyarm/x6818/board.c
++++ b/board/friendlyarm/x6818/board.c
+@@ -10,6 +10,8 @@
+ #include <config.h>
+ #include <command.h>
+ #include <dm.h>
++#include <env.h>
++#include <event.h>
+ #include <fdt_support.h>
+ #include <log.h>
+ #include <phy.h>
+@@ -19,6 +21,8 @@
+ 
+ #include <asm/arch/nexell.h>
+ 
++#include "boot-console.h"
++
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+ /* The vendor x6818 U-Boot boots the OS from eMMC, dwmmc.2. */
+@@ -37,6 +41,29 @@ int x6818_display_power_on(void);
+ int x6818_display_enable_rgb_pins(void);
+ int x6818_display_enable_backlight(void);
+ 
++#ifdef CONFIG_TARGET_X6818_ARM64
++static int x6818_console_settings(void)
++{
++	int ret;
++
++	/* The saved environment may predate the screen console. Change only
++	 * the live copy, before console_init_r() replays the early log buffer.
++	 */
++	ret = env_set("stdout", "serial,vidconsole");
++	if (!ret)
++		ret = env_set("stderr", "serial,vidconsole");
++	if (ret)
++		printf("x6818: cannot select dual console (%d)\n", ret);
++
++	/* Power and mux must be ready when the console probes the video device. */
++	x6818_display_power_on();
++	x6818_display_enable_rgb_pins();
++	return 0;
++}
++
++EVENT_SPY_SIMPLE(EVT_SETTINGS_R, x6818_console_settings);
++#endif
++
+ int board_mmc_bootdev(void)
+ {
+ 	return mmc_boot_dev;
+@@ -127,6 +154,10 @@ int board_late_init(void)
+ 		}
+ 	}
+ 
++	/* Boot logs own the screen by default. A manual splash remains opt-in. */
++	if (env_get_yesno("show_splash") != 1)
++		return 0;
++
+ 	/* Load and show the splash before autoboot can be interrupted. */
+ 	if (video && IS_ENABLED(CONFIG_CMD_FAT) && IS_ENABLED(CONFIG_CMD_BMP)) {
+ 		ret = run_command(X6818_SPLASH_LOAD_CMD, 0);
+@@ -195,6 +226,9 @@ int ft_board_setup(void *blob, struct bd_info *bd)
+ {
+ 	int nodeoff;
+ 	unsigned int rootdev;
++	char args[2048];
++	const char *input;
++	int len, ret;
+ 
+ 	if (board_mmc_bootdev() > 0) {
+ 		rootdev = fdt_getprop_u32_default(blob, "/board", "sdidx", 2);
+@@ -207,6 +241,21 @@ int ft_board_setup(void *blob, struct bd_info *bd)
+ 		}
+ 	}
+ 
++	if (IS_ENABLED(CONFIG_TARGET_X6818_ARM64)) {
++		nodeoff = fdt_find_or_add_subnode(blob, 0, "chosen");
++		if (nodeoff < 0)
++			return nodeoff;
++		input = fdt_getprop(blob, nodeoff, "bootargs", &len);
++		if (input && (len <= 0 || !memchr(input, '\0', len)))
++			return -EINVAL;
++		ret = x6818_console_bootargs(args, sizeof(args), input);
++		if (ret) {
++			printf("x6818: bootargs too long for dual console\n");
++			return ret;
++		}
++		return fdt_setprop_string(blob, nodeoff, "bootargs", args);
++	}
++
+ 	return 0;
+ }
+ #endif
+diff --git a/configs/x6818_arm64_defconfig b/configs/x6818_arm64_defconfig
+index 975b3020915..f0dcf71cb5b 100644
+--- a/configs/x6818_arm64_defconfig
++++ b/configs/x6818_arm64_defconfig
+@@ -30,6 +30,12 @@ CONFIG_BOOTDELAY=1
+ CONFIG_SYS_PBSIZE=1050
+ # CONFIG_DISPLAY_CPUINFO is not set
+ CONFIG_BOARD_LATE_INIT=y
++CONFIG_OF_BOARD_SETUP=y
++CONFIG_CONSOLE_MUX=y
++CONFIG_SYS_CONSOLE_IS_IN_ENV=y
++CONFIG_PRE_CONSOLE_BUFFER=y
++CONFIG_PRE_CON_BUF_SZ=65536
++CONFIG_PRE_CON_BUF_ADDR=0x43000000
+ CONFIG_HUSH_PARSER=y
+ CONFIG_SYS_PROMPT="x6818-arm64# "
+ CONFIG_CMD_SAVEENV=y
+diff --git a/include/configs/x6818.h b/include/configs/x6818.h
+index 85c7f9d2b30..4d6f40d7db7 100644
+--- a/include/configs/x6818.h
++++ b/include/configs/x6818.h
+@@ -79,6 +79,9 @@
+ #endif
+ 
+ #define CFG_EXTRA_ENV_SETTINGS					\
++	"stdin=serial\0"						\
++	"stdout=serial,vidconsole\0"				\
++	"stderr=serial,vidconsole\0"				\
+ 	"initrd_high=0xffffffff\0"				\
+ 	"rootdev=" __stringify(CONFIG_ROOT_DEV) "\0"		\
+ 	"rootpart=" __stringify(CONFIG_ROOT_PART) "\0"		\
+diff --git a/board/friendlyarm/x6818/boot-console.h b/board/friendlyarm/x6818/boot-console.h
+new file mode 100644
+index 00000000000..83d7586c52e
+--- /dev/null
++++ b/board/friendlyarm/x6818/boot-console.h
+@@ -0,0 +1,60 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++#ifndef X6818_BOOT_CONSOLE_H
++#define X6818_BOOT_CONSOLE_H
++
++#include <errno.h>
++#include <string.h>
++
++/* Preserve storage/network/init arguments, including quoted values, while
++ * giving every FDT boot route the same physical console contract.
++ */
++static inline int x6818_console_bootargs(char *out, size_t size,
++				       const char *input)
++{
++	static const char consoles[] =
++		"console=tty1 console=ttySAC0,115200n8 consoleblank=0";
++	size_t used = 0;
++	const char *start;
++	int quoted;
++	size_t len;
++
++	if (!size)
++		return -ENOSPC;
++	out[0] = '\0';
++	while (input && *input) {
++		while (*input == ' ' || *input == '\t' ||
++		       *input == '\r' || *input == '\n')
++			input++;
++		if (!*input)
++			break;
++		start = input;
++		quoted = 0;
++		while (*input) {
++			if (*input == '"')
++				quoted = !quoted;
++			if (!quoted && (*input == ' ' || *input == '\t' ||
++					*input == '\r' || *input == '\n'))
++				break;
++			input++;
++		}
++		len = input - start;
++		if ((len >= 8 && !strncmp(start, "console=", 8)) ||
++		    (len >= 13 && !strncmp(start, "consoleblank=", 13)))
++			continue;
++		if (len + !!used >= size - used)
++			return -ENOSPC;
++		if (used)
++			out[used++] = ' ';
++		memcpy(out + used, start, len);
++		used += len;
++		out[used] = '\0';
++	}
++	if (sizeof(consoles) + !!used > size - used)
++		return -ENOSPC;
++	if (used)
++		out[used++] = ' ';
++	memcpy(out + used, consoles, sizeof(consoles));
++	return 0;
++}
++
++#endif

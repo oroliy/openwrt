@@ -20,7 +20,7 @@ define Build/boot-common
 	mcopy -i $@.boot $(IMAGE_KERNEL) ::Image
 	mcopy -i $@.boot $(KDIR)/image-s5p6818-x6818-nexell-timer.dtb ::s5p6818-x6818-nexell-timer.dtb
 	mcopy -i $@.boot ./logo.bmp ::logo.bmp
-	printf '%s\n' 'TIMEOUT 1' 'DEFAULT x6818' 'LABEL x6818' '  KERNEL /Image' '  FDT /s5p6818-x6818-nexell-timer.dtb' '  APPEND console=ttySAC0,115200 earlycon=s5p6818,mmio,0xc00a1000 root=PARTUUID=$(NEXELL_PARTUUID)-02 rootwait rw fstools_overlay_fstype=ext4' > $@.extlinux
+	printf '%s\n' 'TIMEOUT 1' 'DEFAULT x6818' 'LABEL x6818' '  KERNEL /Image' '  FDT /s5p6818-x6818-nexell-timer.dtb' '  APPEND console=tty1 console=ttySAC0,115200 earlycon=s5p6818,mmio,0xc00a1000 root=PARTUUID=$(NEXELL_PARTUUID)-02 rootwait rw fstools_overlay_fstype=ext4' > $@.extlinux
 	mcopy -i $@.boot $@.extlinux ::extlinux/extlinux.conf
 	rm -f $@.extlinux
 endef
