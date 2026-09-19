@@ -279,6 +279,7 @@ index e47f9a642..2c3fe554d 100644
 2.43.0
 
 
+
 From 11e59d6ae75c94c66059ce0823b475abcbbd17a8 Mon Sep 17 00:00:00 2001
 From: liy <12697416+oroliy@users.noreply.github.com>
 Date: Mon, 31 Aug 2026 23:23:13 +0800
@@ -493,7 +494,7 @@ new file mode 100644
 index 000000000..389a0b1ea
 --- /dev/null
 +++ b/arch/arm64/boot/dts/nexell/s5p6818.dtsi
-@@ -0,0 +1,381 @@
+@@ -0,0 +1,402 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <dt-bindings/interrupt-controller/arm-gic.h>
@@ -524,6 +525,7 @@ index 000000000..389a0b1ea
 +			reg = <0x0 0x0>;
 +			enable-method = "psci";
 +			cci-control-port = <&cci_control4>;
++			next-level-cache = <&cluster0_l2>;
 +		};
 +
 +		cpu1: cpu@1 {
@@ -532,6 +534,7 @@ index 000000000..389a0b1ea
 +			reg = <0x0 0x1>;
 +			cci-control-port = <&cci_control4>;
 +			enable-method = "psci";
++			next-level-cache = <&cluster0_l2>;
 +		};
 +
 +		cpu2: cpu@2 {
@@ -540,6 +543,7 @@ index 000000000..389a0b1ea
 +			reg = <0x0 0x2>;
 +			cci-control-port = <&cci_control4>;
 +			enable-method = "psci";
++			next-level-cache = <&cluster0_l2>;
 +		};
 +
 +		cpu3: cpu@3 {
@@ -548,6 +552,7 @@ index 000000000..389a0b1ea
 +			reg = <0x0 0x3>;
 +			cci-control-port = <&cci_control4>;
 +			enable-method = "psci";
++			next-level-cache = <&cluster0_l2>;
 +		};
 +
 +		cpu4: cpu@100 {
@@ -556,6 +561,7 @@ index 000000000..389a0b1ea
 +			reg = <0x0 0x100>;
 +			cci-control-port = <&cci_control3>;
 +			enable-method = "psci";
++			next-level-cache = <&cluster1_l2>;
 +		};
 +
 +		cpu5: cpu@101 {
@@ -564,6 +570,7 @@ index 000000000..389a0b1ea
 +			reg = <0x0 0x101>;
 +			cci-control-port = <&cci_control3>;
 +			enable-method = "psci";
++			next-level-cache = <&cluster1_l2>;
 +		};
 +
 +		cpu6: cpu@102 {
@@ -572,6 +579,7 @@ index 000000000..389a0b1ea
 +			reg = <0x0 0x102>;
 +			cci-control-port = <&cci_control3>;
 +			enable-method = "psci";
++			next-level-cache = <&cluster1_l2>;
 +		};
 +
 +		cpu7: cpu@103 {
@@ -580,6 +588,20 @@ index 000000000..389a0b1ea
 +			reg = <0x0 0x103>;
 +			cci-control-port = <&cci_control3>;
 +			enable-method = "psci";
++			next-level-cache = <&cluster1_l2>;
++		};
++
++		/* Each four-core cluster has a distinct shared L2 behind its CCI port. */
++		cluster0_l2: l2-cache-cluster0 {
++			compatible = "cache";
++			cache-level = <2>;
++			cache-unified;
++		};
++
++		cluster1_l2: l2-cache-cluster1 {
++			compatible = "cache";
++			cache-level = <2>;
++			cache-unified;
 +		};
 +	};
 +
@@ -602,7 +624,7 @@ index 000000000..389a0b1ea
 +		interrupt-controller;
 +		#interrupt-cells = <3>;
 +		reg = <0x0 0xc0009000 0x0 0x1000>,
-+		      <0x0 0xc000a000 0x0 0x1000>;
++		      <0x0 0xc000a000 0x0 0x2000>;
 +	};
 +
 +	cci: cci@e0090000 {
@@ -4631,4 +4653,3 @@ index 6851ddac0..3779f988c 100644
  CONFIG_RESET_NEXELL=y
 -- 
 2.43.0
-

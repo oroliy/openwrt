@@ -1,6 +1,8 @@
 #!/bin/sh /etc/rc.common
 
-START=99
+# Bring up the local status VT before networking/firewall services.  A
+# userspace service that stalls during boot must not hide the display.
+START=18
 STOP=01
 USE_PROCD=1
 
