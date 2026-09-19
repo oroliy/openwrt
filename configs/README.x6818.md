@@ -25,7 +25,7 @@ not a generated `.config` and not a copy of the arm64 kernel configuration.
 - `collectd` with CPU, interface, iwinfo, load, memory, network, and rrdtool
   plugins: the explicitly selected monitoring set.
 - `fstools`, `e2fsprogs`, `resize2fs`, `fdisk`, `sfdisk`, `partx-utils`,
-  `mount-utils`, `lsblk`, and `uboot-envtools`: persistence, partition expansion,
+  `losetup`, `mount-utils`, `lsblk`, and `uboot-envtools`: persistence, partition expansion,
   ext4 resizing, partition inspection, and boot-environment tooling selected for
   storage operations.
 
@@ -40,7 +40,8 @@ enabling fast flashing (under 10 seconds) on any medium size.
 On first boot, `/etc/uci-defaults/98-grow-partition` detects the underlying
 storage medium (SD or eMMC) and expands Partition 2 to use the full physical
 capacity using `sfdisk` and `partx`.  Subsequently, `/etc/uci-defaults/99-resize-overlay`
-invokes `resize2fs` to expand the overlay filesystem online.
+invokes `resize2fs` to expand the root/overlay filesystem online (refreshing
+loop capacity first if running squashfs).
 
 ## Deliberately omitted
 

@@ -13,8 +13,8 @@ define Device/Default
   KERNEL := kernel-bin
   KERNEL_INITRAMFS := kernel-bin
   IMAGES := sdcard.img.gz emmc.img.gz
-  IMAGE/sdcard.img.gz := boot-common | nexell-sdcard | append-metadata | gzip
-  IMAGE/emmc.img.gz := boot-common | nexell-emmc | append-metadata | gzip
+  IMAGE/sdcard.img.gz := boot-common | nexell-sdcard | gzip | append-metadata
+  IMAGE/emmc.img.gz := boot-common | nexell-emmc | gzip | append-metadata
 endef
 
 define Device/nexell_x6818_arm64

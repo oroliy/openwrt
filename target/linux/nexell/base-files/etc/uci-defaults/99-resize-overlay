@@ -1,13 +1,15 @@
 #!/bin/sh
 
-# This hook only grows an already mounted ext4 overlay filesystem.  Partition
-# growth belongs to image/upgrade tooling and is intentionally not attempted
-# here.
+# This hook grows an already mounted ext4 filesystem (either /overlay or root /).
 mounts=${OVERLAY_MOUNTS_FILE:-/proc/mounts}
 mountpoint=${OVERLAY_MOUNTPOINT:-/overlay}
-entry=$(awk -v m="$mountpoint" '$2 == m { print; exit }' "$mounts" 2>/dev/null) || exit 1
+entry=$(awk -v m="$mountpoint" '$2 == m { print; exit }' "$mounts" 2>/dev/null)
+if [ -z "$entry" ]; then
+	mountpoint="/"
+	entry=$(awk '$2 == "/" { print; exit }' "$mounts" 2>/dev/null)
+fi
 [ -n "$entry" ] || {
-	logger -t resize-overlay "Overlay mount $mountpoint is not ready"
+	logger -t resize-overlay "Neither /overlay nor / mount is ready"
 	exit 1
 }
 
@@ -15,6 +17,13 @@ set -- $entry
 backing=$1
 fstype=$3
 options=$4
+
+# If root is overlayfs but /overlay was not found, overlay is not ready
+if [ "$mountpoint" = "/" ] && [ "$fstype" = "overlay" ]; then
+	logger -t resize-overlay "Root is overlayfs but /overlay was not found"
+	exit 1
+fi
+
 [ "$fstype" = ext4 ] || {
 	logger -t resize-overlay "Skipping $mountpoint: filesystem $fstype is not ext4"
 	exit 1
@@ -23,10 +32,46 @@ case ",$options," in
 	*,rw,*) ;;
 	*) logger -t resize-overlay "Skipping $mountpoint: filesystem is not mounted read-write"; exit 1 ;;
 esac
+
+# If backing is /dev/root and not an existing block device node, resolve to real partition
+if [ "$backing" = "/dev/root" ] && [ ! -b "$backing" ]; then
+	cmdline=${PROC_CMDLINE:-/proc/cmdline}
+	sysfs_block=${SYS_CLASS_BLOCK:-/sys/class/block}
+	partuuid=$(sed -nE 's/.*root=PARTUUID=([^ ]+).*/\1/p' "$cmdline" 2>/dev/null)
+	if [ -n "$partuuid" ]; then
+		for uevent in "$sysfs_block"/*/uevent; do
+			if grep -qi "^PARTUUID=$partuuid" "$uevent" 2>/dev/null; then
+				bname=$(basename "$(dirname "$uevent")")
+				if [ -b "/dev/$bname" ]; then
+					backing="/dev/$bname"
+					break
+				fi
+			fi
+		done
+	fi
+	if [ "$backing" = "/dev/root" ]; then
+		for cand in /dev/mmcblk*p2; do
+			if [ -b "$cand" ]; then
+				backing="$cand"
+				break
+			fi
+		done
+	fi
+fi
+
 test -b "$backing" || {
 	logger -t resize-overlay "Skipping $mountpoint: backing $backing is not a block device"
 	exit 1
 }
+
+case "$backing" in
+	/dev/loop*)
+		if command -v losetup >/dev/null 2>&1; then
+			logger -t resize-overlay "Updating loop capacity on $backing"
+			losetup -c "$backing" >/dev/null 2>&1 || true
+		fi
+		;;
+esac
 command -v resize2fs >/dev/null 2>&1 || {
 	logger -t resize-overlay "Cannot resize $backing: resize2fs is unavailable"
 	exit 1

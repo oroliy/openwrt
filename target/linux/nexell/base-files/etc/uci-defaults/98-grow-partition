@@ -8,6 +8,7 @@ mounts=${OVERLAY_MOUNTS_FILE:-/proc/mounts}
 mountpoint=${OVERLAY_MOUNTPOINT:-/overlay}
 sysfs_block=${SYS_CLASS_BLOCK:-/sys/class/block}
 
+# 1. Look for overlay mount, falling back to root /
 entry=$(awk -v m="$mountpoint" '$2 == m { print; exit }' "$mounts" 2>/dev/null)
 if [ -z "$entry" ]; then
 	entry=$(awk '$2 == "/" { print; exit }' "$mounts" 2>/dev/null)
@@ -16,6 +17,50 @@ fi
 
 set -- $entry
 backing=$1
+
+# 2. Resolve loop device to physical backing device if applicable
+case "$backing" in
+	/dev/loop*)
+		loop_name="${backing#/dev/}"
+		backing_file="$sysfs_block/$loop_name/loop/backing_file"
+		if [ -f "$backing_file" ]; then
+			backing=$(cat "$backing_file" 2>/dev/null)
+		fi
+		;;
+esac
+
+# 3. Resolve /dev/root or non-partition names via cmdline PARTUUID
+case "$backing" in
+	/dev/mmcblk*p*|/dev/sd*[0-9])
+		;;
+	*)
+		cmdline=${PROC_CMDLINE:-/proc/cmdline}
+		partuuid=$(sed -nE 's/.*root=PARTUUID=([^ ]+).*/\1/p' "$cmdline" 2>/dev/null)
+		if [ -n "$partuuid" ]; then
+			for uevent in "$sysfs_block"/*/uevent; do
+				if grep -qi "^PARTUUID=$partuuid" "$uevent" 2>/dev/null; then
+					bname=$(basename "$(dirname "$uevent")")
+					backing="/dev/$bname"
+					break
+				fi
+			done
+		fi
+		;;
+esac
+
+# 4. Fallback for S5P6818 / x6818 standard layout (Partition 2 on mmcblk)
+case "$backing" in
+	/dev/mmcblk*p*|/dev/sd*[0-9])
+		;;
+	*)
+		for cand in "$sysfs_block"/mmcblk*p2; do
+			if [ -d "$cand" ]; then
+				backing="/dev/$(basename "$cand")"
+				break
+			fi
+		done
+		;;
+esac
 
 test -b "$backing" || exit 0
 
@@ -66,6 +111,9 @@ logger -t grow-partition "Expanding partition $part_num on $disk to fill device"
 if echo ", +" | sfdisk -N "$part_num" --no-reread "$disk" >/dev/null 2>&1; then
 	if command -v partx >/dev/null 2>&1; then
 		partx -u -n "$part_num" "$disk" >/dev/null 2>&1 || partx -u "$disk" >/dev/null 2>&1 || true
+	fi
+	if [ -b /dev/loop0 ] && command -v losetup >/dev/null 2>&1; then
+		losetup -c /dev/loop0 >/dev/null 2>&1 || true
 	fi
 	logger -t grow-partition "Partition $part_num expansion complete"
 	exit 0
