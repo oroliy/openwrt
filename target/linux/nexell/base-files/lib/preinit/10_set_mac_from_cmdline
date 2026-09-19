@@ -1,9 +1,38 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Extract MAC address parameters from /proc/cmdline (passed from U-Boot bootargs)
-# Supports:
-#   macaddr=<mac> / ethaddr=<mac>   -> eth0 (有线网卡)
-#   wifimac=<mac> / wlanmac=<mac>   -> wlan0 (WiFi USB网卡)
-#   btmac=<mac>                     -> Bluetooth (蓝牙)
+# Set persistent MAC addresses for network interfaces
+# Priority:
+#   1. /proc/cmdline: macaddr=<mac> / ethaddr=<mac> (manual override)
+#   2. Hardware eMMC/SD Card Identification (CID) (hardware-unique & persistent)
+#   3. Fallback default MAC
+
+get_mac_from_mmc() {
+	local dev=""
+	local cid=""
+	local hash=""
+	local b0 b1 b2 b3 b4 b5
+
+	for dev in /sys/class/block/mmcblk[0-9] /sys/class/block/mmcblk[0-9][0-9]; do
+		[ -e "$dev" ] || continue
+		if [ -r "$dev/device/cid" ]; then
+			cid="$(cat "$dev/device/cid" 2>/dev/null)"
+			[ -n "$cid" ] && break
+		fi
+	done
+
+	[ -z "$cid" ] && return 1
+
+	hash="$(echo -n "$cid" | sha256sum 2>/dev/null | cut -d' ' -f1)"
+	[ -n "$hash" ] || return 1
+
+	b0="02"
+	b1="$(echo "$hash" | cut -c3-4)"
+	b2="$(echo "$hash" | cut -c5-6)"
+	b3="$(echo "$hash" | cut -c7-8)"
+	b4="$(echo "$hash" | cut -c9-10)"
+	b5="$(echo "$hash" | cut -c11-12)"
+
+	echo "${b0}:${b1}:${b2}:${b3}:${b4}:${b5}"
+}
 
 set_mac_from_cmdline() {
 	local eth_mac=""
@@ -24,8 +53,13 @@ set_mac_from_cmdline() {
 		esac
 	done
 
+	if [ -z "$eth_mac" ]; then
+		eth_mac="$(get_mac_from_mmc)"
+		[ -z "$eth_mac" ] && eth_mac="00:e2:1c:ba:e8:60"
+	fi
+
 	if [ -n "$eth_mac" ] && [ -d /sys/class/net/eth0 ]; then
-		echo "Applying persistent MAC $eth_mac to eth0 from cmdline..."
+		echo "Applying persistent MAC $eth_mac to eth0..."
 		ip link set dev eth0 down 2>/dev/null || true
 		ip link set dev eth0 address "$eth_mac" 2>/dev/null || true
 		ip link set dev eth0 up 2>/dev/null || true

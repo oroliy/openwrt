@@ -19,12 +19,30 @@ for arg in $(cat /proc/cmdline); do
 	esac
 done
 
+if [ -z "$eth_mac" ]; then
+	for dev in /sys/class/block/mmcblk[0-9] /sys/class/block/mmcblk[0-9][0-9]; do
+		[ -e "$dev" ] || continue
+		if [ -r "$dev/device/cid" ]; then
+			cid="$(cat "$dev/device/cid" 2>/dev/null)"
+			if [ -n "$cid" ]; then
+				hash="$(echo -n "$cid" | sha256sum 2>/dev/null | cut -d' ' -f1)"
+				if [ -n "$hash" ]; then
+					eth_mac="02:$(echo "$hash" | cut -c3-4):$(echo "$hash" | cut -c5-6):$(echo "$hash" | cut -c7-8):$(echo "$hash" | cut -c9-10):$(echo "$hash" | cut -c11-12)"
+					break
+				fi
+			fi
+		fi
+	done
+	[ -z "$eth_mac" ] && eth_mac="00:e2:1c:ba:e8:60"
+fi
+
 case "$(board_name)" in
 nexell,x6818)
+	ucidef_set_interface_lan "eth0" "dhcp"
 	if [ -n "$eth_mac" ]; then
-		ucidef_set_interface_lan "eth0" "dhcp" "$eth_mac"
-	else
-		ucidef_set_interface_lan "eth0" "dhcp"
+		ucidef_set_interface_macaddr "lan" "$eth_mac"
+		ucidef_set_network_device_mac "eth0" "$eth_mac"
+		ucidef_set_label_macaddr "$eth_mac"
 	fi
 	;;
 esac
