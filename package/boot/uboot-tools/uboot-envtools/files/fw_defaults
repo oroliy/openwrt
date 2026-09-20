@@ -1,6 +1,19 @@
 . /lib/functions/uci-defaults.sh
 
-fw_loadenv
+# fw_printenv needs either an explicit configuration file or a readable
+# NVMEM provider.  Fresh x6818 images intentionally leave the persistent
+# U-Boot environment uninitialised until a separately authorised saveenv;
+# invoking it here would emit a spurious "Cannot parse config" error during
+# every first boot and can hold preinit long enough to trip the watchdog.
+if [ -s /etc/fw_env.config ]; then
+	fw_loadenv
+else
+	for nvmem in /sys/bus/nvmem/devices/*/nvmem; do
+		[ -r "$nvmem" ] || continue
+		fw_loadenv
+		break
+	done
+fi
 
 board_config_update
 

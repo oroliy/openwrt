@@ -1,0 +1,16 @@
+--- a/block.c
++++ b/block.c
+@@ -420,6 +420,14 @@
+ 	char *err;
+ 	struct uci_package *pkg;
+ 
++	/*
++	 * During early overlay discovery these candidate paths are expected to
++	 * be absent.  Keep malformed or unreadable files as real errors, but do
++	 * not report a normal ENOENT probe as a logread error.
++	 */
++	if (access(path, R_OK) && errno == ENOENT)
++		return NULL;
++
+ 	uci_set_confdir(ctx, dir);
+ 	ULOG_INFO("attempting to load %s/%s\n", dir, file);
