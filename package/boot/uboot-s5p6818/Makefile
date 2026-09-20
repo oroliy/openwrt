@@ -6,7 +6,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=uboot-s5p6818
 PKG_VERSION:=2026.07
-PKG_RELEASE:=4
+PKG_RELEASE:=5
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/oroliy/x6818-uboot.git
 PKG_SOURCE_VERSION:=d6654d91be84dc032ead2d06dcfe3ede5fcc0a41

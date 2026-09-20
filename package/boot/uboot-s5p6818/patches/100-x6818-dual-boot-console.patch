@@ -1,5 +1,5 @@
 diff --git a/board/friendlyarm/x6818/board.c b/board/friendlyarm/x6818/board.c
-index 6b4a0c84766..7aea97b31c5 100644
+index 6b4a0c84766..7f381fda1ff 100644
 --- a/board/friendlyarm/x6818/board.c
 +++ b/board/friendlyarm/x6818/board.c
 @@ -10,6 +10,8 @@
@@ -11,7 +11,7 @@ index 6b4a0c84766..7aea97b31c5 100644
  #include <fdt_support.h>
  #include <log.h>
  #include <phy.h>
-@@ -19,6 +21,8 @@
+@@ -19,17 +21,38 @@
  
  #include <asm/arch/nexell.h>
  
@@ -19,20 +19,66 @@ index 6b4a0c84766..7aea97b31c5 100644
 +
  DECLARE_GLOBAL_DATA_PTR;
  
- /* The vendor x6818 U-Boot boots the OS from eMMC, dwmmc.2. */
-@@ -37,6 +41,29 @@ int x6818_display_power_on(void);
+-/* The vendor x6818 U-Boot boots the OS from eMMC, dwmmc.2. */
+-static int mmc_boot_dev = CONFIG_ROOT_DEV;
++/*
++ * The iROM/BL2 hand-off leaves the selected SDMMC port in the power scratch
++ * register.  Port 2 is the on-board eMMC (U-Boot mmc 2); port 0 is the SD
++ * socket (U-Boot mmc 0).  Keep CONFIG_ROOT_DEV as the fail-safe for USB or
++ * older firmware that does not provide the SDMMC boot-mode marker.
++ */
++static int x6818_boot_mmc_dev(void)
++{
++	u32 boot_mode = readl(PHY_BASEADDR_CLKPWR + SYSRSTCONFIG);
++
++	if ((boot_mode & BOOTMODE_MASK) == BOOTMODE_SDMMC) {
++		u32 port = readl(SCR_ARM_SECOND_BOOT_REG1);
++
++		if (port == EMMC_PORT_NUM)
++			return 2;
++		if (port == SD_PORT_NUM)
++			return 0;
++	}
++
++	return CONFIG_ROOT_DEV;
++}
+ 
+ /* Keep the splash path independent of saved U-Boot environment variables.
+- * The boot partition (mmc 2:1) is FAT32 on both SD and eMMC layouts, so try
++ * The boot partition (${rootdev}:1) is FAT32 on both SD and eMMC layouts, so try
+  * fatload first and keep ext4load as a fallback for ext4 boot partitions. */
+ #define X6818_SPLASH_LOAD_CMD \
+-	"if fatload mmc 2:1 0x78000000 logo.bmp; then true; " \
+-	"else ext4load mmc 2:1 0x78000000 logo.bmp; fi"
++	"if fatload mmc ${rootdev}:1 0x78000000 logo.bmp; then true; " \
++	"else ext4load mmc ${rootdev}:1 0x78000000 logo.bmp; fi"
+ #define X6818_SPLASH_SHOW_CMD "bmp display 0x78000000"
+ 
+ int x6818_display_builtin_logo(struct udevice *dev);
+@@ -37,15 +60,51 @@ int x6818_display_power_on(void);
  int x6818_display_enable_rgb_pins(void);
  int x6818_display_enable_backlight(void);
  
++static int x6818_set_rootdev(void)
++{
++	int ret = env_set_ulong("rootdev", x6818_boot_mmc_dev());
++
++	if (ret)
++		printf("x6818: cannot select boot MMC (%d)\n", ret);
++
++	return ret;
++}
++
 +#ifdef CONFIG_TARGET_X6818_ARM64
 +static int x6818_console_settings(void)
 +{
-+	int ret;
++	int ret = x6818_set_rootdev();
 +
 +	/* The saved environment may predate the screen console. Change only
 +	 * the live copy, before console_init_r() replays the early log buffer.
 +	 */
-+	ret = env_set("stdout", "serial,vidconsole");
++	if (!ret)
++		ret = env_set("stdout", "serial,vidconsole");
 +	if (!ret)
 +		ret = env_set("stderr", "serial,vidconsole");
 +	if (ret)
@@ -45,12 +91,25 @@ index 6b4a0c84766..7aea97b31c5 100644
 +}
 +
 +EVENT_SPY_SIMPLE(EVT_SETTINGS_R, x6818_console_settings);
++#else
++EVENT_SPY_SIMPLE(EVT_SETTINGS_R, x6818_set_rootdev);
 +#endif
 +
  int board_mmc_bootdev(void)
  {
- 	return mmc_boot_dev;
-@@ -127,6 +154,10 @@ int board_late_init(void)
+-	return mmc_boot_dev;
++	return x6818_boot_mmc_dev();
+ }
+ 
+ /* call from common/env_mmc.c */
+ int mmc_get_env_dev(void)
+ {
+-	return mmc_boot_dev;
++	return x6818_boot_mmc_dev();
+ }
+ 
+ /*
+@@ -127,6 +186,10 @@ int board_late_init(void)
  		}
  	}
  
@@ -61,7 +120,7 @@ index 6b4a0c84766..7aea97b31c5 100644
  	/* Load and show the splash before autoboot can be interrupted. */
  	if (video && IS_ENABLED(CONFIG_CMD_FAT) && IS_ENABLED(CONFIG_CMD_BMP)) {
  		ret = run_command(X6818_SPLASH_LOAD_CMD, 0);
-@@ -195,6 +226,9 @@ int ft_board_setup(void *blob, struct bd_info *bd)
+@@ -195,6 +258,9 @@ int ft_board_setup(void *blob, struct bd_info *bd)
  {
  	int nodeoff;
  	unsigned int rootdev;
@@ -71,7 +130,7 @@ index 6b4a0c84766..7aea97b31c5 100644
  
  	if (board_mmc_bootdev() > 0) {
  		rootdev = fdt_getprop_u32_default(blob, "/board", "sdidx", 2);
-@@ -207,6 +241,21 @@ int ft_board_setup(void *blob, struct bd_info *bd)
+@@ -207,6 +273,21 @@ int ft_board_setup(void *blob, struct bd_info *bd)
  		}
  	}
  
@@ -93,37 +152,6 @@ index 6b4a0c84766..7aea97b31c5 100644
  	return 0;
  }
  #endif
-diff --git a/configs/x6818_arm64_defconfig b/configs/x6818_arm64_defconfig
-index 975b3020915..f0dcf71cb5b 100644
---- a/configs/x6818_arm64_defconfig
-+++ b/configs/x6818_arm64_defconfig
-@@ -30,6 +30,12 @@ CONFIG_BOOTDELAY=1
- CONFIG_SYS_PBSIZE=1050
- # CONFIG_DISPLAY_CPUINFO is not set
- CONFIG_BOARD_LATE_INIT=y
-+CONFIG_OF_BOARD_SETUP=y
-+CONFIG_CONSOLE_MUX=y
-+CONFIG_SYS_CONSOLE_IS_IN_ENV=y
-+CONFIG_PRE_CONSOLE_BUFFER=y
-+CONFIG_PRE_CON_BUF_SZ=65536
-+CONFIG_PRE_CON_BUF_ADDR=0x43000000
- CONFIG_HUSH_PARSER=y
- CONFIG_SYS_PROMPT="x6818-arm64# "
- CONFIG_CMD_SAVEENV=y
-diff --git a/include/configs/x6818.h b/include/configs/x6818.h
-index 85c7f9d2b30..4d6f40d7db7 100644
---- a/include/configs/x6818.h
-+++ b/include/configs/x6818.h
-@@ -79,6 +79,9 @@
- #endif
- 
- #define CFG_EXTRA_ENV_SETTINGS					\
-+	"stdin=serial\0"						\
-+	"stdout=serial,vidconsole\0"				\
-+	"stderr=serial,vidconsole\0"				\
- 	"initrd_high=0xffffffff\0"				\
- 	"rootdev=" __stringify(CONFIG_ROOT_DEV) "\0"		\
- 	"rootpart=" __stringify(CONFIG_ROOT_PART) "\0"		\
 diff --git a/board/friendlyarm/x6818/boot-console.h b/board/friendlyarm/x6818/boot-console.h
 new file mode 100644
 index 00000000000..83d7586c52e
@@ -190,3 +218,114 @@ index 00000000000..83d7586c52e
 +}
 +
 +#endif
+diff --git a/configs/x6818_arm64_defconfig b/configs/x6818_arm64_defconfig
+index 975b3020915..f0dcf71cb5b 100644
+--- a/configs/x6818_arm64_defconfig
++++ b/configs/x6818_arm64_defconfig
+@@ -30,6 +30,12 @@ CONFIG_BOOTDELAY=1
+ CONFIG_SYS_PBSIZE=1050
+ # CONFIG_DISPLAY_CPUINFO is not set
+ CONFIG_BOARD_LATE_INIT=y
++CONFIG_OF_BOARD_SETUP=y
++CONFIG_CONSOLE_MUX=y
++CONFIG_SYS_CONSOLE_IS_IN_ENV=y
++CONFIG_PRE_CONSOLE_BUFFER=y
++CONFIG_PRE_CON_BUF_SZ=65536
++CONFIG_PRE_CON_BUF_ADDR=0x43000000
+ CONFIG_HUSH_PARSER=y
+ CONFIG_SYS_PROMPT="x6818-arm64# "
+ CONFIG_CMD_SAVEENV=y
+diff --git a/include/configs/x6818.h b/include/configs/x6818.h
+index 85c7f9d2b30..ed480623999 100644
+--- a/include/configs/x6818.h
++++ b/include/configs/x6818.h
+@@ -35,6 +35,37 @@
+ #define BLOADER_MMC							\
+ 	"load mmc ${rootdev}:${bootpart} "
+ 
++/* The AArch64 image is a complete OpenWrt system; keep its root contract
++ * in the compiled default environment and restore it before every MMC boot.
++ * mmcboot replaces the fallback device name with the current partition UUID,
++ * so the same command covers both the eMMC and SD-card image.
++ */
++#define X6818_DEFAULT_BOOTARGS					\
++	"console=ttySAC0,115200 earlycon=s5p6818,mmio,0xc00a1000 " \
++	"root=/dev/mmcblk0p2 rootwait rw fstools_overlay_fstype=ext4"
++#define X6818_BOOTARGS						\
++	"bootargs=" X6818_DEFAULT_BOOTARGS "\0"
++#define X6818_FALLBACK_BOOTARGS				\
++	"if test ${rootdev} = 0; then "			\
++		"setenv bootargs \"console=ttySAC0,115200 " \
++			"earlycon=s5p6818,mmio,0xc00a1000 " \
++			"root=/dev/mmcblk1p2 rootwait rw " \
++			"fstools_overlay_fstype=ext4\"; " \
++	"else "						\
++		"setenv bootargs \"" X6818_DEFAULT_BOOTARGS "\"; " \
++	"fi; "
++#define X6818_SET_BOOTARGS					\
++	"setenv rootpartuuid; "					\
++	"if part uuid mmc ${rootdev}:${rootpart} rootpartuuid; then " \
++		"setenv bootargs \"console=ttySAC0,115200 " \
++			"earlycon=s5p6818,mmio,0xc00a1000 " \
++			"root=PARTUUID=${rootpartuuid} rootwait rw " \
++			"fstools_overlay_fstype=ext4\"; " \
++	"else "						\
++	"echo Failed to identify the MMC root partition; " \
++	X6818_FALLBACK_BOOTARGS				\
++	"fi; "
++
+ #ifdef CONFIG_ARM64
+ #define X6818_KERNEL_NAME	"kernel=Image\0"
+ #define X6818_DTB_NAME		"dtb_name=s5p6818-x6818-nexell-timer.dtb\0"
+@@ -48,9 +79,11 @@
+ #define X6818_MMCBOOT						\
+ 	"mmcboot="							\
+ 		"echo Booting AArch64 Image from mmc ${rootdev}:${bootpart} ...; " \
+-		"mmc dev ${rootdev}; "					\
+-		"if run load_kernel && run load_dtb; then "		\
+-			"booti ${loadaddr} - ${dtb_addr}; "		\
++		"if mmc dev ${rootdev} && mmc rescan; then "	\
++			X6818_SET_BOOTARGS				\
++			"if run load_kernel && run load_dtb; then "	\
++				"booti ${loadaddr} - ${dtb_addr}; "	\
++			"fi; "						\
+ 		"fi\0"
+ #else
+ #define X6818_KERNEL_NAME	"kernel=zImage\0"
+@@ -67,22 +100,29 @@
+ 		"bootm ${loadaddr}\0"					\
+ 	"mmcboot="							\
+ 		"echo Booting from mmc ${rootdev}:${rootpart} ...; " \
+-		"if fstype mmc ${rootdev}:${bootpart}; then "		\
+-			"if run load_kernel && run load_dtb; then "		\
+-				"bootz ${loadaddr} - ${dtb_addr}; "	\
+-			"else "						\
+-				"run legacy_mmcboot; "			\
++		"if mmc dev ${rootdev} && mmc rescan; then "	\
++			X6818_SET_BOOTARGS				\
++			"if fstype mmc ${rootdev}:${bootpart}; then " \
++				"if run load_kernel && run load_dtb; then "	\
++					"bootz ${loadaddr} - ${dtb_addr}; "	\
++				"else "						\
++					"run legacy_mmcboot; "				\
++				"fi; "						\
++			"else "							\
++				"run legacy_mmcboot; "				\
+ 			"fi; "						\
+-		"else "							\
+-			"run legacy_mmcboot; "				\
+ 		"fi\0"
+ #endif
+ 
+ #define CFG_EXTRA_ENV_SETTINGS					\
++	"stdin=serial\0"						\
++	"stdout=serial,vidconsole\0"				\
++	"stderr=serial,vidconsole\0"				\
+ 	"initrd_high=0xffffffff\0"				\
+ 	"rootdev=" __stringify(CONFIG_ROOT_DEV) "\0"		\
+ 	"rootpart=" __stringify(CONFIG_ROOT_PART) "\0"		\
+ 	"bootpart=" __stringify(CONFIG_BOOT_PART) "\0"		\
++	X6818_BOOTARGS						\
+ 	X6818_KERNEL_NAME					\
+ 	"loadaddr=" __stringify(CONFIG_SYS_LOAD_ADDR) "\0"	\
+ 	X6818_DTB_NAME						\

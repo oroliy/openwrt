@@ -1,0 +1,20 @@
+#!/bin/sh /etc/rc.common
+
+# This is deliberately the last normal boot action.  The GPIO beeper has no
+# U-Boot or kernel-startup trigger; it is pulsed once after rcS has reached the
+# OpenWrt "done" boundary.
+START=99
+STOP=01
+
+start() {
+	local marker=/var/run/x6818-ready-beep.done
+
+	[ -e "$marker" ] && return 0
+	if /usr/sbin/x6818-beep-once; then
+		: > "$marker"
+		logger -t x6818-ready-beep "OpenWrt ready: one beeper pulse"
+	else
+		logger -t x6818-ready-beep "beeper unavailable; no pulse emitted"
+		return 1
+	fi
+}
