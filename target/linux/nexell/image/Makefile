@@ -7,7 +7,11 @@ include $(INCLUDE_DIR)/image.mk
 
 NEXELL_KERNEL_PARTSIZE:=$(if $(CONFIG_TARGET_KERNEL_PARTSIZE),$(CONFIG_TARGET_KERNEL_PARTSIZE),64)
 NEXELL_ROOTFS_PARTSIZE:=$(if $(CONFIG_TARGET_ROOTFS_PARTSIZE),$(CONFIG_TARGET_ROOTFS_PARTSIZE),256)
-NEXELL_PARTUUID:=$(if $(IMG_PART_SIGNATURE),$(IMG_PART_SIGNATURE),5452574F)
+# Keep the two boot media distinguishable even when OpenWrt supplies one
+# image-wide IMG_PART_SIGNATURE. U-Boot still resolves the UUID from the
+# selected device at boot, while extlinux can boot with the channel UUID.
+NEXELL_PARTUUID_EMMC:=$(if $(IMG_PART_SIGNATURE),$(IMG_PART_SIGNATURE),5452574F)
+NEXELL_PARTUUID_SDCARD:=$(shell printf '%08x' $$((0x$(NEXELL_PARTUUID_EMMC) ^ 0x0000a5a5)))
 
 FAT32_BLOCK_SIZE=1024
 FAT32_BLOCKS=$(shell echo $$(($(NEXELL_KERNEL_PARTSIZE)*1024*1024/$(FAT32_BLOCK_SIZE))))
@@ -20,13 +24,21 @@ define Build/boot-common
 	mcopy -i $@.boot $(IMAGE_KERNEL) ::Image
 	mcopy -i $@.boot $(KDIR)/image-s5p6818-x6818-nexell-timer.dtb ::s5p6818-x6818-nexell-timer.dtb
 	mcopy -i $@.boot ./logo.bmp ::logo.bmp
-	printf '%s\n' 'TIMEOUT 1' 'DEFAULT x6818' 'LABEL x6818' '  KERNEL /Image' '  FDT /s5p6818-x6818-nexell-timer.dtb' '  APPEND console=tty1 console=ttySAC0,115200 earlycon=s5p6818,mmio,0xc00a1000 root=PARTUUID=$(NEXELL_PARTUUID)-02 rootwait rw fstools_overlay_fstype=ext4' > $@.extlinux
+	printf '%s\n' 'TIMEOUT 1' 'DEFAULT x6818' 'LABEL x6818' '  KERNEL /Image' '  FDT /s5p6818-x6818-nexell-timer.dtb' '  APPEND console=tty1 console=ttySAC0,115200 earlycon=s5p6818,mmio,0xc00a1000 root=PARTUUID=$(if $(filter sdcard,$(1)),$(NEXELL_PARTUUID_SDCARD),$(NEXELL_PARTUUID_EMMC))-02 rootwait rw fstools_overlay_fstype=ext4' > $@.extlinux
 	mcopy -i $@.boot $@.extlinux ::extlinux/extlinux.conf
 	rm -f $@.extlinux
 endef
 
+define Build/boot-common-sdcard
+	$(call Build/boot-common,sdcard)
+endef
+
+define Build/boot-common-emmc
+	$(call Build/boot-common,emmc)
+endef
+
 define Build/nexell-sdcard
-	SIGNATURE="$(NEXELL_PARTUUID)" \
+	SIGNATURE="$(NEXELL_PARTUUID_SDCARD)" \
 	./gen_nexell_disk_img.sh $@ \
 		$@.boot \
 		$(IMAGE_ROOTFS) \
@@ -38,7 +50,7 @@ define Build/nexell-sdcard
 endef
 
 define Build/nexell-emmc
-	SIGNATURE="$(NEXELL_PARTUUID)" \
+	SIGNATURE="$(NEXELL_PARTUUID_EMMC)" \
 	./gen_nexell_disk_img.sh $@ \
 		$@.boot \
 		$(IMAGE_ROOTFS) \

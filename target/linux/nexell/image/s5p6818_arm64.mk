@@ -13,8 +13,8 @@ define Device/Default
   KERNEL := kernel-bin
   KERNEL_INITRAMFS := kernel-bin
   IMAGES := sdcard.img.gz emmc.img.gz
-  IMAGE/sdcard.img.gz := boot-common | nexell-sdcard | gzip | append-metadata
-  IMAGE/emmc.img.gz := boot-common | nexell-emmc | gzip | append-metadata
+  IMAGE/sdcard.img.gz := boot-common-sdcard | nexell-sdcard | gzip | append-metadata
+  IMAGE/emmc.img.gz := boot-common-emmc | nexell-emmc | gzip | append-metadata
 endef
 
 define Device/nexell_x6818_arm64
@@ -22,7 +22,7 @@ define Device/nexell_x6818_arm64
   DEVICE_MODEL := x6818 (AArch64)
   DEVICE_DTS := s5p6818-x6818-nexell-timer
   SUPPORTED_DEVICES := nexell,x6818
-  DEVICE_PACKAGES := nexell-firmware kmod-rtl8xxxu rtl8723bu-firmware rtl8723b-bt-firmware iptables-nft ip6tables-nft kmod-btusb bluez-daemon bluez-utils bluez-utils-extra bluez-libs kmod-input-evdev evtest iw kmod-input-gpio-keys-polled kmod-leds-gpio block-mount blockd kmod-fs-vfat kmod-nls-cp437 kmod-nls-iso8859-1 kmod-fs-exfat sfdisk partx-utils losetup e2fsprogs resize2fs
+  DEVICE_PACKAGES := nexell-firmware x6818-status kmod-rtl8xxxu rtl8723bu-firmware rtl8723b-bt-firmware iptables-nft ip6tables-nft kmod-btusb bluez-daemon bluez-utils bluez-utils-extra bluez-libs kmod-input-evdev evtest iw kmod-input-gpio-keys-polled kmod-leds-gpio block-mount blockd kmod-fs-vfat kmod-nls-cp437 kmod-nls-iso8859-1 kmod-fs-exfat sfdisk partx-utils losetup e2fsprogs resize2fs
   ARTIFACTS := Image Image-initramfs fit-initramfs dtb
   ARTIFACT/Image := copy-file $(KDIR)/Image
   ARTIFACT/Image-initramfs := copy-file $(KDIR)/Image-initramfs

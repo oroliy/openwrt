@@ -202,6 +202,25 @@ class DiskImageTest(unittest.TestCase):
         self.assertEqual(struct.unpack_from("<I", image, 462 + 8)[0], 0x40000)
         self.assertEqual(len(image), (0x40000 + 256 * 2048) * 512)
 
+    def test_squashfs_rootfs_gets_preformatted_overlay(self):
+        rootfs = self.work / "root.squashfs"
+        rootfs_data = bytearray(2 * 1024 * 1024)
+        rootfs_data[0:4] = b"hsqs"
+        struct.pack_into("<Q", rootfs_data, 40, len(rootfs_data))
+        rootfs.write_bytes(rootfs_data)
+
+        result = self.invoke(self.firmware(0), 0, rootfs=rootfs,
+                             root_size="64", name="preformatted")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        image = (self.work / "image-preformatted.img").read_bytes()
+        # The default ptgen stub returns the partition fields on stdout but
+        # deliberately does not write an MBR; its p2 start is boot+root.
+        root_start = (65536 + 2048) * 512
+        overlay_start = root_start + len(rootfs_data)
+        self.assertEqual(struct.unpack_from("<H", image,
+                                            overlay_start + 0x438)[0],
+                         0xEF53)
+
 
 if __name__ == "__main__":
     unittest.main()

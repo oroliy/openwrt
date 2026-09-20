@@ -8,13 +8,25 @@ STOP=01
 
 start() {
 	local marker=/var/run/x6818-ready-beep.done
+	local lock=/var/run/x6818-ready-beep.lock
+
+	cleanup() {
+		rmdir "$lock" 2>/dev/null || :
+	}
 
 	[ -e "$marker" ] && return 0
+	mkdir "$lock" 2>/dev/null || return 0
+	trap 'cleanup; exit 1' 1 2 3 15
+	logger -t x6818-ready-beep "OpenWrt done boundary reached"
 	if /usr/sbin/x6818-beep-once; then
 		: > "$marker"
 		logger -t x6818-ready-beep "OpenWrt ready: one beeper pulse"
+		cleanup
+		trap - 1 2 3 15
 	else
 		logger -t x6818-ready-beep "beeper unavailable; no pulse emitted"
+		cleanup
+		trap - 1 2 3 15
 		return 1
 	fi
 }

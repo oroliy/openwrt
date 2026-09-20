@@ -211,6 +211,47 @@ if [ "$ROOTFS_SIZE" -gt "$((ROOTFSSIZE * 512))" ]; then
     exit 1
 fi
 
+# fstools places rootfs_data immediately after the SquashFS payload, rounded
+# up to its 64 KiB alignment.  Pre-format that region in the image instead of
+# relying on the first boot to create a loop-backed filesystem.  The latter
+# is fragile while the first-boot partition-growth hook is updating p2 and
+# can leave the board on a non-persistent tmpfs overlay.
+ROOTFS_DATA_OFFSET="$(python3 - "$ROOTFS" <<'PY'
+import struct
+import sys
+
+with open(sys.argv[1], "rb") as stream:
+    if stream.read(4) != b"hsqs":
+        print(0)
+        raise SystemExit
+    stream.seek(40)
+    raw = stream.read(8)
+    if len(raw) != 8:
+        raise SystemExit("truncated SquashFS superblock")
+    used = struct.unpack("<Q", raw)[0]
+print((used + 65535) & ~65535)
+PY
+)"
+case "$ROOTFS_DATA_OFFSET" in
+    ''|*[!0-9]*) echo "invalid SquashFS rootfs_data offset" >&2; exit 1 ;;
+esac
+if [ "$ROOTFS_DATA_OFFSET" -gt 0 ]; then
+    ROOTFS_PART_BYTES="$((ROOTFSSIZE * 512))"
+    if [ "$ROOTFS_DATA_OFFSET" -ge "$ROOTFS_PART_BYTES" ]; then
+        echo "SquashFS leaves no room for rootfs_data" >&2
+        exit 1
+    fi
+    ROOTFS_DATA_BYTES="$((ROOTFS_PART_BYTES - ROOTFS_DATA_OFFSET))"
+    if [ "$ROOTFS_DATA_BYTES" -lt "$((16 * 1024 * 1024))" ]; then
+        echo "rootfs_data area is too small for ext4" >&2
+        exit 1
+    fi
+    ROOTFS_DATA_TMP="$(mktemp "$OUTPUT.rootfs-data.XXXXXX")"
+    trap 'rm -f "$ROOTFS_DATA_TMP"' EXIT
+    truncate -s "$ROOTFS_DATA_BYTES" "$ROOTFS_DATA_TMP"
+    mkfs.ext4 -q -F -L rootfs_data "$ROOTFS_DATA_TMP"
+fi
+
 # 1. Write firmware package starting at Sector 1 (offset 512 bytes), preserving Sector 0 MBR
 dd bs=512 if="$FIRMWARE" of="$OUTPUT" seek=1 conv=notrunc
 
@@ -242,6 +283,17 @@ if [ "$ROOTFSPADDINGSIZE" -gt 0 ]; then
         ROOTFSPADDINGSIZE=2048
     fi
     dd bs=512 if=/dev/zero of="$OUTPUT" seek="$ROOTFSPADDINGOFFSET" count="$ROOTFSPADDINGSIZE" conv=notrunc
+fi
+
+# 5. Place the pre-formatted rootfs_data filesystem at fstools' aligned offset.
+# Do this after the padding write above: a SquashFS file may contain a small
+# tail beyond its bytes_used value, while fstools starts the overlay at the
+# aligned bytes_used boundary.
+if [ "$ROOTFS_DATA_OFFSET" -gt 0 ]; then
+    dd bs=512 if="$ROOTFS_DATA_TMP" of="$OUTPUT" \
+        seek="$((ROOTFSOFFSET + ROOTFS_DATA_OFFSET / 512))" conv=notrunc,sync
+    rm -f "$ROOTFS_DATA_TMP"
+    trap - EXIT
 fi
 
 # ptgen may leave the tail sparse; retain the complete logical disk size so
