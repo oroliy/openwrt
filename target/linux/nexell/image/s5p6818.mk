@@ -21,6 +21,7 @@ define Device/nexell_x6818
   DEVICE_MODEL := x6818
   DEVICE_DTS := s5p6818-x6818
   SUPPORTED_DEVICES := nexell,x6818
+  DEVICE_PACKAGES := rtl8723b-bt-firmware iptables-nft ip6tables-nft
   ARTIFACTS := uImage uImage-initramfs emmc-initramfs dtb
   ARTIFACT/uImage := copy-file $(KDIR)/zImage | uImage none
   ARTIFACT/uImage-initramfs := copy-file $(KDIR)/zImage-initramfs | uImage none
