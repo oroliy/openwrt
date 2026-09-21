@@ -13,3 +13,15 @@ if [ -f /etc/config/uhttpd ]; then
 	uci -q del_list uhttpd.main.lua_prefix='/cgi-bin/luci=/usr/lib/lua/luci/sgi/uhttpd.lua'
 	uci commit uhttpd
 fi
+
+# Ensure 192.168.1.1 static alias exists on br-lan for direct PC web access
+if [ -f /etc/config/network ]; then
+	uci -q get network.lan_static >/dev/null || {
+		uci set network.lan_static=interface
+		uci set network.lan_static.device='br-lan'
+		uci set network.lan_static.proto='static'
+		uci set network.lan_static.ipaddr='192.168.1.1'
+		uci set network.lan_static.netmask='255.255.255.0'
+		uci commit network
+	}
+fi
