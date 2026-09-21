@@ -34,10 +34,8 @@ define Package/x6818-status/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/x6818-status-vt $(1)/usr/sbin/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/x6818-beep-once $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/x6818-status.init $(1)/etc/init.d/x6818-status
-	$(INSTALL_BIN) ./files/x6818-ready-beep $(1)/etc/init.d/x6818-ready-beep
 	$(INSTALL_BIN) ./files/95-x6818-status $(1)/etc/uci-defaults/
 	$(INSTALL_CONF) ./files/x6818-status.conf $(1)/etc/x6818-status.conf
-	ln -sf ../init.d/x6818-ready-beep $(1)/etc/rc.d/S99x6818-ready-beep
 	chmod 600 $(1)/etc/x6818-status.conf
 endef
 

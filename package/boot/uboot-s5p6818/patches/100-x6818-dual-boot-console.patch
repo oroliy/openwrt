@@ -31,7 +31,7 @@ index e42805fa012..b990f006a29 100644
  #define BOOTMODE_MASK			(0x7)
  #define BOOTMODE_SDMMC			5
 diff --git a/board/friendlyarm/x6818/board.c b/board/friendlyarm/x6818/board.c
-index 6b4a0c84766..aa0adc68910 100644
+index 6b4a0c84766..18b68fd4245 100644
 --- a/board/friendlyarm/x6818/board.c
 +++ b/board/friendlyarm/x6818/board.c
 @@ -10,6 +10,8 @@
@@ -210,7 +210,7 @@ index 6b4a0c84766..aa0adc68910 100644
  
  	if (board_mmc_bootdev() > 0) {
  		rootdev = fdt_getprop_u32_default(blob, "/board", "sdidx", 2);
-@@ -207,6 +305,62 @@ int ft_board_setup(void *blob, struct bd_info *bd)
+@@ -207,6 +305,66 @@ int ft_board_setup(void *blob, struct bd_info *bd)
  		}
  	}
  
@@ -262,6 +262,10 @@ index 6b4a0c84766..aa0adc68910 100644
 +							reg[idx++] = cpu_to_fdt32((u32)plat->size);
 +
 +							fdt_setprop(blob, rsvoff, "reg", reg, idx * sizeof(fdt32_t));
++
++							char nodename[64];
++							snprintf(nodename, sizeof(nodename), "framebuffer@%lx", (ulong)plat->base);
++							fdt_set_name(blob, rsvoff, nodename);
 +						}
 +					}
 +				}
@@ -357,10 +361,23 @@ index 975b3020915..f0dcf71cb5b 100644
  CONFIG_SYS_PROMPT="x6818-arm64# "
  CONFIG_CMD_SAVEENV=y
 diff --git a/drivers/video/nexell_display.c b/drivers/video/nexell_display.c
-index 72da99fe290..af7de6900c0 100644
+index 72da99fe290..e34242c6b6e 100644
 --- a/drivers/video/nexell_display.c
 +++ b/drivers/video/nexell_display.c
-@@ -577,10 +577,12 @@ static int nx_display_bind(struct udevice *dev)
+@@ -443,6 +443,12 @@ static struct nx_display_dev *nx_display_setup(void)
+ 		}
+ 	}
+ 
++	/* Clear the entire framebuffer before enabling display output to avoid showing uninitialized RAM noise */
++	if (dp->fb_plane && dp->fb_plane->fb_base) {
++		size_t fb_sz = plat ? plat->size : 0x1000000;
++		memset((void *)(uintptr_t)dp->fb_plane->fb_base, 0, fb_sz);
++	}
++
+ 	switch (dp->dev_type) {
+ #ifdef CONFIG_VIDEO_NX_RGB
+ 	case DP_DEVICE_RGBLCD:
+@@ -577,10 +583,12 @@ static int nx_display_bind(struct udevice *dev)
  	 */
  	plat->size = 0x1000000;
  
