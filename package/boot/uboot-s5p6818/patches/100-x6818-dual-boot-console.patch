@@ -1,5 +1,37 @@
+diff --git a/arch/arm/mach-nexell/include/mach/nexell.h b/arch/arm/mach-nexell/include/mach/nexell.h
+index e42805fa012..b990f006a29 100644
+--- a/arch/arm/mach-nexell/include/mach/nexell.h
++++ b/arch/arm/mach-nexell/include/mach/nexell.h
+@@ -7,6 +7,8 @@
+ #ifndef __NEXELL_H__
+ #define __NEXELL_H__
+ 
++#include <linux/bitops.h>
++
+ #define PHY_BASEADDR_DMA0		(0xC0000000)
+ #define PHY_BASEADDR_DMA1		(0xC0001000)
+ #if defined(CONFIG_ARCH_S5P4418)
+@@ -330,6 +332,18 @@
+ #define	SCR_SIGNAGURE_READ		(SCR_ALIVE_BASE + 0x070)
+ 
+ #define SYSRSTCONFIG			(0x23C)
++
++/* Reset Status Register (CLKPWR + 0x218, read-only).
++ * S5P6818 User's Manual Section 4.9.1.26.
++ * Hardware latches the most recent reset source and clears previous status.
++ * Priority: POR > GPIO > Watchdog > Software.
++ */
++#define CLKPWR_RESETSTATUS	(PHY_BASEADDR_CLKPWR + 0x218)
++#define RESETSTATUS_POR		BIT(0)	/* Power-On Reset (cold boot) */
++#define RESETSTATUS_GPIO	BIT(1)	/* nRESET pin / external button */
++#define RESETSTATUS_WDT		BIT(2)	/* Watchdog timer reset */
++#define RESETSTATUS_SW		BIT(3)	/* Software reset (PWRMODE bit12) */
++#define RESETSTATUS_MASK	0x0F
+ #define DEVICEBOOTINFO			(0x50)
+ #define BOOTMODE_MASK			(0x7)
+ #define BOOTMODE_SDMMC			5
 diff --git a/board/friendlyarm/x6818/board.c b/board/friendlyarm/x6818/board.c
-index 6b4a0c84766..7f381fda1ff 100644
+index 6b4a0c84766..6ec28448d7a 100644
 --- a/board/friendlyarm/x6818/board.c
 +++ b/board/friendlyarm/x6818/board.c
 @@ -10,6 +10,8 @@
@@ -109,7 +141,55 @@ index 6b4a0c84766..7f381fda1ff 100644
  }
  
  /*
-@@ -127,6 +186,10 @@ int board_late_init(void)
+@@ -80,7 +139,22 @@ int board_phy_config(struct phy_device *phydev)
+ #ifdef CONFIG_DISPLAY_BOARDINFO
+ int checkboard(void)
+ {
+-	printf("Board: Nexell S5P6818 x6818\n");
++	u32 rst = readl((void __iomem *)CLKPWR_RESETSTATUS) & RESETSTATUS_MASK;
++	const char *cause;
++
++	if (rst & RESETSTATUS_POR)
++		cause = "power-on";
++	else if (rst & RESETSTATUS_WDT)
++		cause = "watchdog";
++	else if (rst & RESETSTATUS_SW)
++		cause = "software";
++	else if (rst & RESETSTATUS_GPIO)
++		cause = "external";
++	else
++		cause = "unknown";
++
++	printf("Board: Nexell S5P6818 x6818 (reset: %s, 0x%x)\n",
++	       cause, rst);
+ 	return 0;
+ }
+ #endif
+@@ -104,6 +178,23 @@ int board_late_init(void)
+ 	struct udevice *video = NULL;
+ 	int ret;
+ 
++	/* Publish reset reason for Linux /proc/cmdline */
++	{
++		u32 rst = readl((void __iomem *)CLKPWR_RESETSTATUS) &
++			  RESETSTATUS_MASK;
++		const char *reason = "unknown";
++
++		if (rst & RESETSTATUS_POR)
++			reason = "power-on";
++		else if (rst & RESETSTATUS_WDT)
++			reason = "watchdog";
++		else if (rst & RESETSTATUS_SW)
++			reason = "software";
++		else if (rst & RESETSTATUS_GPIO)
++			reason = "external";
++		env_set("reset_reason", reason);
++	}
++
+ 	if (IS_ENABLED(CONFIG_SILENT_CONSOLE))
+ 		gd->flags &= ~GD_FLG_SILENT;
+ 
+@@ -127,6 +218,10 @@ int board_late_init(void)
  		}
  	}
  
@@ -120,7 +200,7 @@ index 6b4a0c84766..7f381fda1ff 100644
  	/* Load and show the splash before autoboot can be interrupted. */
  	if (video && IS_ENABLED(CONFIG_CMD_FAT) && IS_ENABLED(CONFIG_CMD_BMP)) {
  		ret = run_command(X6818_SPLASH_LOAD_CMD, 0);
-@@ -195,6 +258,9 @@ int ft_board_setup(void *blob, struct bd_info *bd)
+@@ -195,6 +290,9 @@ int ft_board_setup(void *blob, struct bd_info *bd)
  {
  	int nodeoff;
  	unsigned int rootdev;
@@ -130,7 +210,7 @@ index 6b4a0c84766..7f381fda1ff 100644
  
  	if (board_mmc_bootdev() > 0) {
  		rootdev = fdt_getprop_u32_default(blob, "/board", "sdidx", 2);
-@@ -207,6 +273,21 @@ int ft_board_setup(void *blob, struct bd_info *bd)
+@@ -207,6 +305,21 @@ int ft_board_setup(void *blob, struct bd_info *bd)
  		}
  	}
  
@@ -235,6 +315,27 @@ index 975b3020915..f0dcf71cb5b 100644
  CONFIG_HUSH_PARSER=y
  CONFIG_SYS_PROMPT="x6818-arm64# "
  CONFIG_CMD_SAVEENV=y
+diff --git a/drivers/video/nexell_display.c b/drivers/video/nexell_display.c
+index 72da99fe290..af7de6900c0 100644
+--- a/drivers/video/nexell_display.c
++++ b/drivers/video/nexell_display.c
+@@ -577,10 +577,12 @@ static int nx_display_bind(struct udevice *dev)
+ 	 */
+ 	plat->size = 0x1000000;
+ 
+-	if (IS_ENABLED(CONFIG_TARGET_X6818) ||
+-	    IS_ENABLED(CONFIG_TARGET_X6818_ARM64))
+-		/* Match the vendor x6818 framebuffer used by the working BSP. */
+-		plat->base = 0x46000000;
++	/* Let video_reserve() allocate from RAM top.  The vendor BSP hardcoded
++	 * 0x46000000 which sits only 2.25 MiB above TEXT_BASE; the resulting
++	 * proximity to U-Boot's pre-relocation working area and the absence of
++	 * a proper gd->relocaddr reservation caused visible flicker on the
++	 * x6818 panel.
++	 */
+ 
+ 	return 0;
+ }
 diff --git a/include/configs/x6818.h b/include/configs/x6818.h
 index 85c7f9d2b30..ed480623999 100644
 --- a/include/configs/x6818.h
