@@ -198,9 +198,17 @@ platform_copy_config() {
 		esac
 		mkdir -p "$mnt_dir"
 		if mount -t vfat -o rw,noatime "$p_node" "$mnt_dir" 2>/dev/null || mount -o rw,noatime "$p_node" "$mnt_dir"; then
-			cp -af "$UPGRADE_BACKUP" "$mnt_dir/$BACKUP_FILE"
+			if ! cp -af "$UPGRADE_BACKUP" "$mnt_dir/$BACKUP_FILE"; then
+				umount "$mnt_dir" || true
+				rmdir "$mnt_dir" 2>/dev/null || true
+				echo "Failed copying configuration archive to $p_node"
+				return 1
+			fi
 			sync
-			umount "$mnt_dir"
+			if ! umount "$mnt_dir"; then
+				echo "Failed unmounting $p_node after configuration copy"
+				return 1
+			fi
 			rmdir "$mnt_dir" 2>/dev/null || true
 			v "Configuration successfully stored to boot partition ($p_node)"
 			return 0

@@ -212,6 +212,11 @@ rmdir() { return 0; }
 platform_copy_config || fail "platform_copy_config failed"
 echo "ok: platform_copy_config preserved configuration"
 
+cp() { return 1; }
+not_expect platform_copy_config
+unset -f cp
+echo "ok: platform_copy_config rejects a failed archive copy"
+
 # 6. Test 79_move_config (preinit hook)
 [ -f "$preinit" ] || fail "79_move_config missing"
 boot_hook_add() { :; }
