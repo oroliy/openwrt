@@ -38,6 +38,7 @@ check_exact() {
 check_exact CONFIG_ARCH '"aarch64"'
 check_exact CONFIG_ARCH_64BIT y
 check_exact CONFIG_TARGET_ARCH_PACKAGES '"aarch64_cortex-a53"'
+check_line '# CONFIG_LUCI_JSMIN is not set'
 
 # Firmware/runtime packages must be selected; missing one is a packaging gate.
 check_exact CONFIG_PACKAGE_nexell-firmware y
