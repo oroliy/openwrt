@@ -52,7 +52,7 @@ echo "ok: rejected image with invalid MBR signature"
 # p2: start 192 (sector 192 = 96KB), size 256 (128KB)
 python3 -c '
 import struct
-total_sectors = 512
+total_sectors = 448
 img = bytearray(total_sectors * 512)
 # MBR signature
 img[510:512] = b"\x55\xaa"
@@ -76,6 +76,17 @@ open("'$tmp'/valid_test.img", "wb").write(img)
 platform_check_image "$tmp/valid_test.img" || fail "valid image check failed"
 echo "ok: platform_check_image passed on valid image"
 
+# A syntactically valid MBR must not admit a short partition payload.
+head -c $(( (192 + 256) * 512 - 1 )) "$tmp/valid_test.img" > "$tmp/truncated.img"
+not_expect platform_check_image "$tmp/truncated.img"
+echo "ok: rejected image truncated one byte before partition end"
+
+# A producer error after emitting all bytes must also fail validation.
+get_image() { cat "$1"; return 1; }
+not_expect platform_check_image "$tmp/valid_test.img"
+get_image() { cat "$1"; }
+echo "ok: rejected image stream error after complete output"
+
 # 4. Test platform_do_upgrade:
 # Set up mock target block devices
 mkdir -p "$tmp/dev"
@@ -95,6 +106,11 @@ export_partdevice() {
 
 export UPGRADE_BACKUP=""
 export UPGRADE_OPT_SAVE_PARTITIONS=1
+
+not_expect platform_do_upgrade "$tmp/truncated.img"
+[ ! -s "$tmp/dev/mmcblk0p1" ] || fail "truncated upgrade modified p1"
+[ ! -s "$tmp/dev/mmcblk0p2" ] || fail "truncated upgrade modified p2"
+echo "ok: rejected truncated image before partition writes"
 
 platform_do_upgrade "$tmp/valid_test.img" || fail "platform_do_upgrade failed"
 
@@ -162,4 +178,3 @@ move_config
 echo "ok: 79_move_config successfully restored backup file from boot partition"
 
 echo "all upgrade tests: PASS"
-

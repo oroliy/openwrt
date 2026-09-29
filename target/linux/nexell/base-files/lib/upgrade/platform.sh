@@ -16,6 +16,31 @@
 
 REQUIRE_IMAGE_METADATA=1
 
+x6818_image_bytes() {
+	local image="$1" dir bytes pid stream_ok=0
+
+	dir="$(mktemp -d /tmp/x6818-image.XXXXXX)" || return 1
+	mkfifo "$dir/stream" || { rmdir "$dir"; return 1; }
+	get_image "$image" > "$dir/stream" &
+	pid=$!
+	if ! bytes="$(wc -c < "$dir/stream")"; then
+		bytes=""
+	fi
+	if wait "$pid"; then
+		stream_ok=1
+	fi
+	rm -f "$dir/stream"
+	rmdir "$dir"
+	[ "$stream_ok" -eq 1 ] || return 1
+	set -- $bytes
+	[ "$#" -eq 1 ] || return 1
+	bytes="$1"
+	case "$bytes" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	printf '%s\n' "$bytes"
+}
+
 platform_check_image() {
 	local image="$1"
 	local diskdev
@@ -27,11 +52,30 @@ platform_check_image() {
 
 	# Verify MBR signature at offset 510
 	local magic
-	magic="$(get_image "$image" | dd bs=1 skip=510 count=2 2>/dev/null | hexdump -v -n 2 -e '1/1 "%02x"')"
+	magic="$(get_image "$image" 2>/dev/null | dd bs=1 skip=510 count=2 2>/dev/null | hexdump -v -n 2 -e '1/1 "%02x"')"
 	if [ "$magic" != "55aa" ]; then
 		echo "Image missing valid MBR signature (expected 55aa, got $magic)"
 		return 1
 	fi
+	local p2_start p2_size image_bytes expected_bytes
+	set -- $(get_image "$image" 2>/dev/null | dd bs=1 skip=470 count=8 2>/dev/null |
+		hexdump -v -e '8/1 "%02x "')
+	[ "$#" -eq 8 ] || { echo "Image partition table is truncated"; return 1; }
+	p2_start=$((0x$4$3$2$1))
+	p2_size=$((0x$8$7$6$5))
+	[ "$p2_start" -gt 0 ] && [ "$p2_size" -gt 0 ] || {
+		echo "Image rootfs partition is missing"
+		return 1
+	}
+	expected_bytes=$(( (p2_start + p2_size) * 512 ))
+	image_bytes="$(x6818_image_bytes "$image")" || {
+		echo "Unable to read the complete image"
+		return 1
+	}
+	[ "$image_bytes" -eq "$expected_bytes" ] || {
+		echo "Image length $image_bytes does not match partition end $expected_bytes"
+		return 1
+	}
 
 	return 0
 }
@@ -65,6 +109,10 @@ platform_copy_config() {
 platform_do_upgrade() {
 	local image="$1"
 	local diskdev partdev1 partdev2
+
+	# Stage2 must revalidate before the first write: the image may have changed
+	# since procd ran platform_check_image in the normal userspace.
+	platform_check_image "$image" || return 1
 
 	export_bootdevice && export_partdevice diskdev 0 || {
 		echo "Unable to determine upgrade boot disk"
