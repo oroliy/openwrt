@@ -415,14 +415,14 @@ index 85c7f9d2b30..ed480623999 100644
 + * so the same command covers both the eMMC and SD-card image.
 + */
 +#define X6818_DEFAULT_BOOTARGS					\
-+	"console=ttySAC0,115200 earlycon=s5p6818,mmio,0xc00a1000 " \
++	"console=ttySAC0,115200 earlycon=s5p6818,mmio,0xc00a1000 panic=1 " \
 +	"root=/dev/mmcblk0p2 rootwait rw fstools_overlay_fstype=ext4"
 +#define X6818_BOOTARGS						\
 +	"bootargs=" X6818_DEFAULT_BOOTARGS "\0"
 +#define X6818_FALLBACK_BOOTARGS				\
 +	"if test ${rootdev} = 0; then "			\
 +		"setenv bootargs \"console=ttySAC0,115200 " \
-+			"earlycon=s5p6818,mmio,0xc00a1000 " \
++			"earlycon=s5p6818,mmio,0xc00a1000 panic=1 " \
 +			"root=/dev/mmcblk1p2 rootwait rw " \
 +			"fstools_overlay_fstype=ext4\"; " \
 +	"else "						\
@@ -432,7 +432,7 @@ index 85c7f9d2b30..ed480623999 100644
 +	"setenv rootpartuuid; "					\
 +	"if part uuid mmc ${rootdev}:${rootpart} rootpartuuid; then " \
 +		"setenv bootargs \"console=ttySAC0,115200 " \
-+			"earlycon=s5p6818,mmio,0xc00a1000 " \
++			"earlycon=s5p6818,mmio,0xc00a1000 panic=1 " \
 +			"root=PARTUUID=${rootpartuuid} rootwait rw " \
 +			"fstools_overlay_fstype=ext4\"; " \
 +	"else "						\
