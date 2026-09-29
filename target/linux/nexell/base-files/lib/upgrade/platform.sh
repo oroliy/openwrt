@@ -19,8 +19,8 @@ REQUIRE_IMAGE_METADATA=1
 x6818_image_bytes() {
 	local image="$1" dir bytes pid stream_ok=0
 
-	dir="$(mktemp -d /tmp/x6818-image.XXXXXX)" || return 1
-	mkfifo "$dir/stream" || { rmdir "$dir"; return 1; }
+	dir="$(busybox mktemp -d /tmp/x6818-image.XXXXXX)" || return 1
+	busybox mkfifo "$dir/stream" || { rmdir "$dir"; return 1; }
 	get_image "$image" > "$dir/stream" &
 	pid=$!
 	if ! bytes="$(wc -c < "$dir/stream")"; then
@@ -79,7 +79,7 @@ x6818_write_partition() {
 	local image="$1" node="$2" start="$3" sectors="$4"
 	local log records full partial
 
-	log="$(mktemp /tmp/x6818-dd.XXXXXX)" || return 1
+	log="$(busybox mktemp /tmp/x6818-dd.XXXXXX)" || return 1
 	if ! get_image "$image" 2>/dev/null |
 		dd of="$node" ibs=512 obs=1M iflag=fullblock \
 			skip="$start" count="$sectors" conv=fsync 2>"$log"; then
@@ -240,7 +240,7 @@ platform_do_upgrade() {
 
 	# Extract MBR partition table using dd + hexdump (works in minimal ramfs without python)
 	local mbr_tmp
-	mbr_tmp="$(mktemp -t mbr.XXXXXX 2>/dev/null || echo "/tmp/mbr.$$.bin")"
+	mbr_tmp="$(busybox mktemp -t mbr.XXXXXX 2>/dev/null || echo "/tmp/mbr.$$.bin")"
 	get_image "$image" | dd of="$mbr_tmp" bs=512 count=1 2>/dev/null
 
 	local p1_hex p1_sz_hex p2_hex p2_sz_hex

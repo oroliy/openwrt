@@ -98,6 +98,20 @@ open("'$tmp'/valid_test.img", "wb").write(img)
 platform_check_image "$tmp/valid_test.img" || fail "valid image check failed"
 echo "ok: platform_check_image passed on valid image"
 
+# Stage2 copies BusyBox but does not copy standalone mktemp/mkfifo command
+# links. The image preflight and write helper must work with that command set.
+mkdir "$tmp/ramfs-bin"
+for applet in busybox cat dd hexdump rm rmdir sed wc; do
+	ln -s "$(command -v "$applet")" "$tmp/ramfs-bin/$applet"
+done
+saved_path="$PATH"
+PATH="$tmp/ramfs-bin"
+platform_check_image "$tmp/valid_test.img" || fail "ramfs command-set preflight failed"
+x6818_write_partition "$tmp/valid_test.img" "$tmp/ramfs-partition" 192 256 ||
+	fail "ramfs command-set partition copy failed"
+PATH="$saved_path"
+echo "ok: image preflight and partition copy work with stage2 command set"
+
 mock_disk_signature=12345678
 not_expect platform_check_image "$tmp/valid_test.img"
 mock_disk_signature=595de613
