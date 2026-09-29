@@ -22,6 +22,27 @@ export_partdevice() { return 1; }
 
 . "$platform"
 
+mock_p1_sectors=128
+mock_p2_sectors=256
+mock_p1_start=64
+mock_p2_start=192
+mock_disk_signature=595de613
+x6818_partition_sectors() {
+	case "$1" in
+		*p1) echo "$mock_p1_sectors" ;;
+		*p2) echo "$mock_p2_sectors" ;;
+		*) return 1 ;;
+	esac
+}
+x6818_disk_signature() { echo "$mock_disk_signature"; }
+x6818_partition_start() {
+	case "$1" in
+		*p1) echo "$mock_p1_start" ;;
+		*p2) echo "$mock_p2_start" ;;
+		*) return 1 ;;
+	esac
+}
+
 printf "bad_image" > "$tmp/bad_image"
 not_expect platform_check_image "$tmp/bad_image"
 not_expect platform_do_upgrade "$tmp/bad_image"
@@ -56,6 +77,7 @@ total_sectors = 448
 img = bytearray(total_sectors * 512)
 # MBR signature
 img[510:512] = b"\x55\xaa"
+struct.pack_into("<I", img, 440, 0x13e65d59)
 # Partition 1: type 0x0c (FAT32), start 64, size 128
 struct.pack_into("<BxxxII", img, 446 + 4, 0x0c, 64, 128)
 # Partition 2: type 0x83 (Linux), start 192, size 256
@@ -75,6 +97,27 @@ open("'$tmp'/valid_test.img", "wb").write(img)
 # Test platform_check_image succeeds on valid MBR
 platform_check_image "$tmp/valid_test.img" || fail "valid image check failed"
 echo "ok: platform_check_image passed on valid image"
+
+mock_disk_signature=12345678
+not_expect platform_check_image "$tmp/valid_test.img"
+mock_disk_signature=595de613
+echo "ok: rejected image with mismatched preserved MBR signature"
+
+mock_p1_start=65
+not_expect platform_check_image "$tmp/valid_test.img"
+mock_p1_start=64
+mock_p2_start=193
+not_expect platform_check_image "$tmp/valid_test.img"
+mock_p2_start=192
+echo "ok: rejected image with changed partition starts"
+
+mock_p1_sectors=127
+not_expect platform_check_image "$tmp/valid_test.img"
+mock_p1_sectors=128
+mock_p2_sectors=255
+not_expect platform_check_image "$tmp/valid_test.img"
+mock_p2_sectors=256
+echo "ok: rejected image partitions larger than installed targets"
 
 # A syntactically valid MBR must not admit a short partition payload.
 head -c $(( (192 + 256) * 512 - 1 )) "$tmp/valid_test.img" > "$tmp/truncated.img"
@@ -125,6 +168,12 @@ platform_do_upgrade "$tmp/valid_test.img" || fail "platform_do_upgrade failed"
 grep -q "BOOT_PAYLOAD_" "$tmp/dev/mmcblk0p1" || fail "mmcblk0p1 does not contain boot payload"
 grep -q "ROOT_PAYLOAD_" "$tmp/dev/mmcblk0p2" || fail "mmcblk0p2 does not contain root payload"
 echo "ok: platform_do_upgrade stream-wrote p1 and p2 without touching raw disk device"
+
+# Model a stream that becomes short after preflight; stage2 must not report
+# success just because dd reached EOF without an I/O error.
+platform_check_image() { return 0; }
+not_expect platform_do_upgrade "$tmp/truncated.img"
+echo "ok: rejected short partition stream during stage2 write"
 
 # 5. Test platform_copy_config
 export BACKUP_FILE="sysupgrade.tgz"

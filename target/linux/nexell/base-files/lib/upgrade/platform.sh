@@ -41,9 +41,73 @@ x6818_image_bytes() {
 	printf '%s\n' "$bytes"
 }
 
+x6818_partition_sectors() {
+	local dev="${1##*/}" sectors
+
+	[ -r "/sys/class/block/$dev/size" ] || return 1
+	read -r sectors < "/sys/class/block/$dev/size" || return 1
+	case "$sectors" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	printf '%s\n' "$sectors"
+}
+
+x6818_partition_start() {
+	local dev="${1##*/}" start
+
+	[ -r "/sys/class/block/$dev/start" ] || return 1
+	read -r start < "/sys/class/block/$dev/start" || return 1
+	case "$start" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	printf '%s\n' "$start"
+}
+
+x6818_disk_signature() {
+	local disk="$1"
+
+	case "$disk" in
+		/*) ;;
+		*) disk="/dev/$disk" ;;
+	esac
+	[ -b "$disk" ] || return 1
+	dd if="$disk" bs=1 skip=440 count=4 2>/dev/null |
+		hexdump -v -e '4/1 "%02x"'
+}
+
+x6818_write_partition() {
+	local image="$1" node="$2" start="$3" sectors="$4"
+	local log records full partial
+
+	log="$(mktemp /tmp/x6818-dd.XXXXXX)" || return 1
+	if ! get_image "$image" 2>/dev/null |
+		dd of="$node" ibs=512 obs=1M iflag=fullblock \
+			skip="$start" count="$sectors" conv=fsync 2>"$log"; then
+		cat "$log" >&2
+		rm -f "$log"
+		return 1
+	fi
+	records="$(sed -n '1s/ records in$//p' "$log")"
+	rm -f "$log"
+	case "$records" in
+		*+*) ;;
+		*) echo "Missing dd input-record count for $node" >&2; return 1 ;;
+	esac
+	full="${records%%+*}"
+	partial="${records#*+}"
+	case "$full:$partial" in
+		*[!0-9:]*|:*|*:) echo "Invalid dd input-record count: $records" >&2; return 1 ;;
+	esac
+	[ "$full" -eq "$sectors" ] && [ "$partial" -eq 0 ] || {
+		echo "Short partition write to $node: $records of $sectors records in" >&2
+		return 1
+	}
+	return 0
+}
+
 platform_check_image() {
 	local image="$1"
-	local diskdev
+	local diskdev partdev1 partdev2
 
 	export_bootdevice && export_partdevice diskdev 0 || {
 		echo "Unable to determine upgrade boot disk"
@@ -57,14 +121,57 @@ platform_check_image() {
 		echo "Image missing valid MBR signature (expected 55aa, got $magic)"
 		return 1
 	fi
-	local p2_start p2_size image_bytes expected_bytes
+	local image_signature target_signature
+	image_signature="$(get_image "$image" 2>/dev/null |
+		dd bs=1 skip=440 count=4 2>/dev/null | hexdump -v -e '4/1 "%02x"')"
+	target_signature="$(x6818_disk_signature "$diskdev")" || {
+		echo "Unable to read installed disk signature"
+		return 1
+	}
+	case "$image_signature" in
+		''|00000000) echo "Image disk signature is missing"; return 1 ;;
+	esac
+	[ "$image_signature" = "$target_signature" ] || {
+		echo "Image disk signature does not match installed MBR"
+		return 1
+	}
+	local p1_start p1_size p2_start p2_size image_bytes expected_bytes
+	local target_p1_start target_p2_start target_p1_size target_p2_size
+	set -- $(get_image "$image" 2>/dev/null | dd bs=1 skip=454 count=8 2>/dev/null |
+		hexdump -v -e '8/1 "%02x "')
+	[ "$#" -eq 8 ] || { echo "Image boot partition entry is truncated"; return 1; }
+	p1_start=$((0x$4$3$2$1))
+	p1_size=$((0x$8$7$6$5))
 	set -- $(get_image "$image" 2>/dev/null | dd bs=1 skip=470 count=8 2>/dev/null |
 		hexdump -v -e '8/1 "%02x "')
 	[ "$#" -eq 8 ] || { echo "Image partition table is truncated"; return 1; }
 	p2_start=$((0x$4$3$2$1))
 	p2_size=$((0x$8$7$6$5))
-	[ "$p2_start" -gt 0 ] && [ "$p2_size" -gt 0 ] || {
-		echo "Image rootfs partition is missing"
+	[ "$p1_start" -gt 0 ] && [ "$p1_size" -gt 0 ] &&
+		[ "$p2_start" -ge "$((p1_start + p1_size))" ] &&
+		[ "$p2_size" -gt 0 ] || {
+		echo "Image partition layout is invalid or overlapping"
+		return 1
+	}
+	export_partdevice partdev1 1 && export_partdevice partdev2 2 || {
+		echo "Unable to determine installed partitions"
+		return 1
+	}
+	target_p1_size="$(x6818_partition_sectors "$partdev1")" &&
+		target_p2_size="$(x6818_partition_sectors "$partdev2")" &&
+		target_p1_start="$(x6818_partition_start "$partdev1")" &&
+		target_p2_start="$(x6818_partition_start "$partdev2")" || {
+		echo "Unable to read installed partition geometry"
+		return 1
+	}
+	[ "$p1_start" -eq "$target_p1_start" ] &&
+		[ "$p2_start" -eq "$target_p2_start" ] || {
+		echo "Image partition starts differ from installed MBR"
+		return 1
+	}
+	[ "$p1_size" -le "$target_p1_size" ] &&
+		[ "$p2_size" -le "$target_p2_size" ] || {
+		echo "Image partitions exceed installed capacities (p1 $p1_size/$target_p1_size, p2 $p2_size/$target_p2_size sectors)"
 		return 1
 	}
 	expected_bytes=$(( (p2_start + p2_size) * 512 ))
@@ -172,13 +279,13 @@ platform_do_upgrade() {
 	esac
 
 	v "Streaming partition 1 (Boot FAT32) to $p1_node (skip $p1_start, count $p1_size)..."
-	get_image "$image" | dd of="$p1_node" ibs=512 obs=1M skip="$p1_start" count="$p1_size" conv=fsync 2>/dev/null || {
+	x6818_write_partition "$image" "$p1_node" "$p1_start" "$p1_size" || {
 		echo "Failed writing boot partition $p1_node"
 		return 1
 	}
 
 	v "Streaming partition 2 (Rootfs) to $p2_node (skip $p2_start, count $p2_size)..."
-	get_image "$image" | dd of="$p2_node" ibs=512 obs=1M skip="$p2_start" count="$p2_size" conv=fsync 2>/dev/null || {
+	x6818_write_partition "$image" "$p2_node" "$p2_start" "$p2_size" || {
 		echo "Failed writing rootfs partition $p2_node"
 		return 1
 	}
