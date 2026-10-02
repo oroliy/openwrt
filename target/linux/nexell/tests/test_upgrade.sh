@@ -183,6 +183,17 @@ grep -q "BOOT_PAYLOAD_" "$tmp/dev/mmcblk0p1" || fail "mmcblk0p1 does not contain
 grep -q "ROOT_PAYLOAD_" "$tmp/dev/mmcblk0p2" || fail "mmcblk0p2 does not contain root payload"
 echo "ok: platform_do_upgrade stream-wrote p1 and p2 without touching raw disk device"
 
+# If clearing the old overlay fails, stage2 must report an incomplete upgrade.
+dd() {
+	case " $* " in
+		*' if=/dev/zero '*) return 1 ;;
+	esac
+	command dd "$@"
+}
+not_expect platform_do_upgrade "$tmp/valid_test.img"
+unset -f dd
+echo "ok: rejected failed overlay-signature clear"
+
 # Model a stream that becomes short after preflight; stage2 must not report
 # success just because dd reached EOF without an I/O error.
 platform_check_image() { return 0; }

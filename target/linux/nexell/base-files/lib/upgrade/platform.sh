@@ -301,7 +301,10 @@ platform_do_upgrade() {
 	# Clean stale overlay signature if requested to not keep settings
 	if [ -z "$UPGRADE_BACKUP" ] || [ "${UPGRADE_OPT_SAVE_PARTITIONS:-1}" = "0" ]; then
 		v "Clearing overlay signature on $p2_node after rootfs..."
-		dd if=/dev/zero of="$p2_node" bs=512 seek="$p2_size" count=2048 conv=fsync 2>/dev/null || true
+		if ! dd if=/dev/zero of="$p2_node" bs=512 seek="$p2_size" count=2048 conv=fsync 2>/dev/null; then
+			echo "Failed clearing overlay signature on $p2_node" >&2
+			return 1
+		fi
 	fi
 
 	sync
