@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline tests for the x6818 partition-image wrapper."""
 
+import hashlib
 import os
 from pathlib import Path
 import struct
@@ -87,10 +88,13 @@ class DiskImageTest(unittest.TestCase):
         return path
 
     def invoke(self, firmware, channel, bootfs=None, rootfs=None,
-               ptgen_dir=None, boot_size="1", root_size="1", name=None):
+               ptgen_dir=None, boot_size="1", root_size="1", name=None,
+               source_date_epoch=None):
         output = self.work / f"image-{name or channel}.img"
         prefix = str(ptgen_dir or self.bin)
         env = dict(os.environ, PATH=f"{prefix}:{os.environ['PATH']}")
+        if source_date_epoch is not None:
+            env["SOURCE_DATE_EPOCH"] = str(source_date_epoch)
         return subprocess.run(
             [str(SCRIPT), str(output), str(bootfs or self.boot),
              str(rootfs or self.rootfs), boot_size, root_size, str(channel),
@@ -220,6 +224,39 @@ class DiskImageTest(unittest.TestCase):
         self.assertEqual(struct.unpack_from("<H", image,
                                             overlay_start + 0x438)[0],
                          0xEF53)
+
+    def test_preformatted_overlay_rebuild_is_byte_identical(self):
+        rootfs = self.work / "root.squashfs"
+        payload = bytearray(2 * 1024 * 1024)
+        payload[:4] = b"hsqs"
+        struct.pack_into("<Q", payload, 40, len(payload))
+        rootfs.write_bytes(payload)
+        firmware = self.firmware(0)
+        for name in ("same-a", "same-b"):
+            result = self.invoke(firmware, 0, rootfs=rootfs,
+                                 root_size="20", name=name,
+                                 source_date_epoch=1790710689)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        images = [self.work / f"image-{name}.img"
+                  for name in ("same-a", "same-b")]
+        hashes = [hashlib.sha256(path.read_bytes()).digest()
+                  for path in images]
+        self.assertEqual(hashes[0], hashes[1])
+
+        other = self.invoke(self.firmware(2), 2, rootfs=rootfs,
+                            root_size="20", name="other-channel",
+                            source_date_epoch=1790710689)
+        self.assertEqual(other.returncode, 0, other.stderr)
+        overlay_start = (65536 + 2048) * 512 + len(payload)
+        uuid_offset = overlay_start + 0x468
+        with images[0].open("rb") as first, \
+                (self.work / "image-other-channel.img").open("rb") as second:
+            first.seek(overlay_start + 1024 + 0x108)
+            self.assertEqual(struct.unpack("<I", first.read(4))[0],
+                             1790710689)
+            first.seek(uuid_offset)
+            second.seek(uuid_offset)
+            self.assertNotEqual(first.read(16), second.read(16))
 
 
 if __name__ == "__main__":

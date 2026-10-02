@@ -249,7 +249,32 @@ if [ "$ROOTFS_DATA_OFFSET" -gt 0 ]; then
     ROOTFS_DATA_TMP="$(mktemp "$OUTPUT.rootfs-data.XXXXXX")"
     trap 'rm -f "$ROOTFS_DATA_TMP"' EXIT
     truncate -s "$ROOTFS_DATA_BYTES" "$ROOTFS_DATA_TMP"
-    mkfs.ext4 -q -F -L rootfs_data "$ROOTFS_DATA_TMP"
+    # The preformatted overlay is part of the distributed image.  Derive a
+    # distinct, stable UUID for each disk channel and rootfs payload, and
+    # fix ext4's otherwise random directory hash seed and creation time.
+    ROOTFS_DATA_UUID="$(python3 - "$OUTPUT" "$ROOTFS" "$FIRMWARE_CHANNEL" <<'PY'
+import hashlib
+import struct
+import sys
+import uuid
+
+with open(sys.argv[1], "rb") as disk:
+    disk.seek(440)
+    signature = struct.unpack("<I", disk.read(4))[0]
+with open(sys.argv[2], "rb") as rootfs:
+    digest = hashlib.sha256(rootfs.read()).hexdigest()
+print(uuid.uuid5(uuid.NAMESPACE_OID,
+                 f"x6818-rootfs-data:{sys.argv[3]}:{signature:08x}:{digest}"))
+PY
+)"
+    if [ -n "${SOURCE_DATE_EPOCH:-}" ]; then
+        case "$SOURCE_DATE_EPOCH" in
+            *[!0-9]*) echo "invalid SOURCE_DATE_EPOCH" >&2; exit 1 ;;
+        esac
+        export E2FSPROGS_FAKE_TIME="$SOURCE_DATE_EPOCH"
+    fi
+    mkfs.ext4 -q -F -L rootfs_data -U "$ROOTFS_DATA_UUID" \
+        -E "hash_seed=$ROOTFS_DATA_UUID" "$ROOTFS_DATA_TMP"
 fi
 
 # 1. Write firmware package starting at Sector 1 (offset 512 bytes), preserving Sector 0 MBR
