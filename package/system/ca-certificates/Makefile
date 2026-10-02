@@ -8,7 +8,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ca-certificates
 PKG_VERSION:=20260601
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_MAINTAINER:=
 
 PKG_LICENSE:=GPL-2.0-or-later MPL-2.0
@@ -47,6 +47,13 @@ define Build/Install
 		$(PKG_INSTALL_DIR)/usr/sbin \
 		$(PKG_INSTALL_DIR)/usr/share/ca-certificates
 	$(call Build/Install/Default,)
+endef
+
+define Build/Compile
+	# certdata2pem.py adds _2.crt when a generated name already exists.
+	# Remove output from an interrupted build before regenerating the bundle.
+	rm -f $(PKG_BUILD_DIR)/mozilla/*.crt
+	$(call Build/Compile/Default,)
 endef
 
 define Package/ca-certificates/install
