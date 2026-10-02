@@ -14,7 +14,8 @@ define Image/mkfs/ext4
 		$(if $(CONFIG_TARGET_EXT4_JOURNAL),,-J) \
 		$(if $(SOURCE_DATE_EPOCH),-T $(SOURCE_DATE_EPOCH)) \
 		$@ $(call mkfs_target_dir,$(1))/
-	./fix_ext4_inode_bitmap.sh $(STAGING_DIR_HOST)/bin/e2fsck $@ $(SOURCE_DATE_EPOCH)
+	./fix_ext4_inode_bitmap.sh $(STAGING_DIR_HOST)/bin/e2fsck \
+		$(STAGING_DIR_HOST)/bin/debugfs $@ $(SOURCE_DATE_EPOCH)
 endef
 
 NEXELL_KERNEL_PARTSIZE:=$(if $(CONFIG_TARGET_KERNEL_PARTSIZE),$(CONFIG_TARGET_KERNEL_PARTSIZE),64)
