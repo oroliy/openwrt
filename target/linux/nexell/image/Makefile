@@ -5,6 +5,18 @@
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/image.mk
 
+# make_ext4fs leaves inode-bitmap padding unset on this target's ext4 rootfs.
+# Check for that one defect, repair it with a fixed clock, and verify the result.
+define Image/mkfs/ext4
+	$(STAGING_DIR_HOST)/bin/make_ext4fs -L rootfs \
+		-l $(ROOTFS_PARTSIZE) -b $(CONFIG_TARGET_EXT4_BLOCKSIZE) \
+		$(if $(CONFIG_TARGET_EXT4_RESERVED_PCT),-m $(CONFIG_TARGET_EXT4_RESERVED_PCT)) \
+		$(if $(CONFIG_TARGET_EXT4_JOURNAL),,-J) \
+		$(if $(SOURCE_DATE_EPOCH),-T $(SOURCE_DATE_EPOCH)) \
+		$@ $(call mkfs_target_dir,$(1))/
+	./fix_ext4_inode_bitmap.sh $(STAGING_DIR_HOST)/bin/e2fsck $@ $(SOURCE_DATE_EPOCH)
+endef
+
 NEXELL_KERNEL_PARTSIZE:=$(if $(CONFIG_TARGET_KERNEL_PARTSIZE),$(CONFIG_TARGET_KERNEL_PARTSIZE),64)
 NEXELL_ROOTFS_PARTSIZE:=$(if $(CONFIG_TARGET_ROOTFS_PARTSIZE),$(CONFIG_TARGET_ROOTFS_PARTSIZE),256)
 # Keep the two boot media distinguishable even when OpenWrt supplies one
