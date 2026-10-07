@@ -183,16 +183,63 @@ grep -q "BOOT_PAYLOAD_" "$tmp/dev/mmcblk0p1" || fail "mmcblk0p1 does not contain
 grep -q "ROOT_PAYLOAD_" "$tmp/dev/mmcblk0p2" || fail "mmcblk0p2 does not contain root payload"
 echo "ok: platform_do_upgrade stream-wrote p1 and p2 without touching raw disk device"
 
-# If clearing the old overlay fails, stage2 must report an incomplete upgrade.
+# A complete p2 image already replaces the old overlay. Writing after its
+# declared end is an out-of-range write on an exactly sized block device.
+# Ordinary files silently grow, so check both exact bytes and fixed capacity.
+command dd if="$tmp/valid_test.img" of="$tmp/expected-p2" bs=512 skip=192 count=256 2>/dev/null
+cmp "$tmp/expected-p2" "$tmp/dev/mmcblk0p2" ||
+	fail "p2 differs from its exact image payload or grew beyond its declared size"
+echo "ok: p2 exactly matches the complete image partition without an appended clear"
+
 dd() {
-	case " $* " in
-		*' if=/dev/zero '*) return 1 ;;
-	esac
+	local arg output="" blocksize=512 seek=0 count=0
+	for arg in "$@"; do
+		case "$arg" in
+			of=*) output="${arg#of=}" ;;
+			bs=*) blocksize="${arg#bs=}" ;;
+			seek=*) seek="${arg#seek=}" ;;
+			count=*) count="${arg#count=}" ;;
+		esac
+	done
+	if [ "$output" = "$tmp/dev/mmcblk0p2" ] && [ "$seek" -gt 0 ] &&
+		[ "$(( (seek + count) * blocksize ))" -gt "$((mock_p2_sectors * 512))" ]; then
+		echo "Mock block device: write exceeds p2 capacity" >&2
+		return 1
+	fi
 	command dd "$@"
 }
-not_expect platform_do_upgrade "$tmp/valid_test.img"
+platform_do_upgrade "$tmp/valid_test.img" || fail "upgrade failed with exactly sized p2"
+cmp "$tmp/expected-p2" "$tmp/dev/mmcblk0p2" || fail "bounded p2 payload changed"
+echo "ok: upgrade succeeds with exactly sized p2 and no out-of-range write"
+
+# Exercise SquashFS with an ext4 overlay header at fstools' aligned bytes_used
+# boundary, and a pure ext4 rootfs. Their complete partition bytes must survive
+# both keep-settings and discard-settings upgrades without additional writes.
+python3 - "$tmp/valid_test.img" "$tmp" <<'PY_IMAGES'
+from pathlib import Path
+import struct
+import sys
+image = bytearray(Path(sys.argv[1]).read_bytes())
+root = 192 * 512
+image[root:root + 4] = b"hsqs"
+struct.pack_into("<Q", image, root + 40, 60000)
+struct.pack_into("<H", image, root + 65536 + 1024 + 56, 0xef53)
+Path(sys.argv[2], "squashfs-overlay.img").write_bytes(image)
+image[root:root + 4] = bytes(4)
+struct.pack_into("<H", image, root + 1024 + 56, 0xef53)
+Path(sys.argv[2], "ext4-root.img").write_bytes(image)
+PY_IMAGES
+for fixture in squashfs-overlay ext4-root; do
+	command dd if="$tmp/$fixture.img" of="$tmp/expected-p2" bs=512 skip=192 count=256 2>/dev/null
+	for backup in "" "$tmp/keep-settings.tgz"; do
+		export UPGRADE_BACKUP="$backup"
+		platform_do_upgrade "$tmp/$fixture.img" || fail "$fixture upgrade failed"
+		cmp "$tmp/expected-p2" "$tmp/dev/mmcblk0p2" || fail "$fixture p2 payload changed"
+	done
+done
+export UPGRADE_BACKUP=""
 unset -f dd
-echo "ok: rejected failed overlay-signature clear"
+echo "ok: SquashFS overlay and ext4 rootfs payloads survive both settings modes"
 
 # Model a stream that becomes short after preflight; stage2 must not report
 # success just because dd reached EOF without an I/O error.

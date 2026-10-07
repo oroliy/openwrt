@@ -298,14 +298,10 @@ platform_do_upgrade() {
 		return 1
 	}
 
-	# Clean stale overlay signature if requested to not keep settings
-	if [ -z "$UPGRADE_BACKUP" ] || [ "${UPGRADE_OPT_SAVE_PARTITIONS:-1}" = "0" ]; then
-		v "Clearing overlay signature on $p2_node after rootfs..."
-		if ! dd if=/dev/zero of="$p2_node" bs=512 seek="$p2_size" count=2048 conv=fsync 2>/dev/null; then
-			echo "Failed clearing overlay signature on $p2_node" >&2
-			return 1
-		fi
-	fi
+	# The complete p2 payload replaces the old rootfs and any overlay, including
+	# the image's fresh preformatted rootfs_data for SquashFS. Do not clear past
+	# p2_size: that is outside the payload and may be beyond the block device.
+	# Saved settings are restored separately from the boot partition.
 
 	sync
 	return 0
