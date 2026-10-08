@@ -25,7 +25,7 @@ PKG_MAINTAINER:=John Crispin <john@phrozen.org>
 PKG_BUILD_FLAGS:=lto
 PKG_ASLR_PIE_REGULAR:=1
 PKG_CONFIG_DEPENDS:= \
-	CONFIG_TARGET_INIT_PATH CONFIG_KERNEL_SECCOMP CONFIG_PROCD_SHOW_BOOT CONFIG_TARGET_nexell \
+	CONFIG_TARGET_INIT_PATH CONFIG_KERNEL_SECCOMP CONFIG_PROCD_SHOW_BOOT CONFIG_TARGET_nexell CONFIG_PROCD_X6818_CRASH_KMSG_DIAGNOSTIC \
 	CONFIG_KERNEL_NAMESPACES CONFIG_PACKAGE_procd-ujail CONFIG_PACKAGE_procd-seccomp
 
 include $(INCLUDE_DIR)/package.mk
@@ -39,6 +39,9 @@ CMAKE_OPTIONS += -DEARLY_PATH="$(TARGET_INIT_PATH)"
 
 # A failed partition upgrade must leave Nexell in RAM for console recovery.
 CMAKE_OPTIONS += -DUPGRADE_FAILURE_RECOVERY=$(if $(CONFIG_TARGET_nexell),ON,OFF)
+
+# Explicit opt-in for the temporary Nexell RAM diagnostic candidate.
+CMAKE_OPTIONS += -DX6818_CRASH_KMSG_DIAGNOSTIC=$(if $(and $(CONFIG_TARGET_nexell),$(filter y,$(CONFIG_PROCD_X6818_CRASH_KMSG_DIAGNOSTIC))),ON,OFF)
 
 define Package/procd/Default
   SECTION:=base
@@ -95,6 +98,11 @@ config PROCD_SHOW_BOOT
 	bool
 	default n
 	prompt "Print the shutdown to the console as well as logging it to syslog"
+
+config PROCD_X6818_CRASH_KMSG_DIAGNOSTIC
+	bool "Temporary Nexell procd crash kmsg diagnostic"
+	depends on TARGET_nexell
+	default n
 
 endmenu
 endef

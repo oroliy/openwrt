@@ -1,0 +1,221 @@
+--- a/signal.c
++++ b/signal.c
+@@ -20,6 +20,9 @@
+ #include <signal.h>
+ #include <sys/stat.h>
+ #include <sys/sysmacros.h>
++#ifdef __aarch64__
++#include <ucontext.h>
++#endif
+ #endif
+ 
+ #include <unistd.h>
+@@ -28,6 +31,116 @@
+ 
+ #ifdef X6818_CRASH_KMSG_DIAGNOSTIC
+ static volatile sig_atomic_t crash_kmsg_fd = -1;
++#ifdef __aarch64__
++static void signal_crash(int signal, siginfo_t *siginfo, void *data);
++
++enum {
++    CRASH_CONTEXT_BYTES =
++        sizeof("<0>X6818_PROCD_CONTEXT pid1=") - 1 + 1 +
++        sizeof(" pc=0x") - 1 + 16 +
++        sizeof(" lr=0x") - 1 + 16 +
++        sizeof(" sp=0x") - 1 + 16 +
++        sizeof(" fault=0x") - 1 + 16 +
++        sizeof(" fault_valid=") - 1 + 1 +
++        sizeof(" code=0x") - 1 + 8 +
++        sizeof(" anchor=0x") - 1 + 16 + 1,
++};
++typedef char crash_context_fits[(CRASH_CONTEXT_BYTES <= 192) ? 1 : -1];
++
++/* Fixed-width, stack-only conversion: no stdio or allocator in a handler. */
++static char *crash_diag_text(char *dst, const char *src)
++{
++    while (*src)
++        *dst++ = *src++;
++    return dst;
++}
++
++static char *crash_diag_hex(char *dst, unsigned long value, unsigned digits)
++{
++    static const char hex[] = "0123456789abcdef";
++
++    while (digits) {
++        digits--;
++        *dst++ = hex[(value >> (digits * 4)) & 15];
++    }
++    return dst;
++}
++#endif
++
++#ifdef __aarch64__
++/* Normal context only: capture executable mappings before a possible crash. */
++static void crash_kmsg_maps(void)
++{
++    static const char prefix[] = "<0>X6818_PROCD_MAP ";
++    static const char end[] = "<0>X6818_PROCD_MAP_END\n";
++    static const char truncated[] = "<0>X6818_PROCD_MAP_TRUNCATED\n";
++    static const char unavailable[] = "<0>X6818_PROCD_MAP_UNAVAILABLE\n";
++    int saved_errno = errno;
++    int fd = crash_kmsg_fd;
++    int maps;
++    char input[256], line[384], record[sizeof(prefix) + sizeof(line)];
++    size_t length = 0;
++    unsigned emitted = 0;
++    int overflow = 0, incomplete = 0;
++    ssize_t n;
++
++    if (fd < 0)
++        goto out;
++    maps = open("/proc/self/maps", O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
++    if (maps < 0) {
++        (void)write(fd, unavailable, sizeof(unavailable) - 1);
++        goto out;
++    }
++
++    while ((n = read(maps, input, sizeof(input))) > 0) {
++        for (ssize_t j = 0; j < n; j++) {
++            char c = input[j];
++            if (c != '\n') {
++                if (length < sizeof(line) - 1)
++                    line[length++] = c;
++                else
++                    overflow = 1;
++                continue;
++            }
++            if (overflow) {
++                incomplete = 1;
++            } else {
++                size_t i = 0;
++                while (i < length && line[i] != ' ')
++                    i++;
++                /* /proc/self/maps: address range, space, then four permission chars. */
++                if (i + 3 < length && line[i + 3] == 'x') {
++                    size_t k = 0;
++                    if (emitted == 32) {
++                        incomplete = 1;
++                        goto done;
++                    }
++                    for (size_t p = 0; p < sizeof(prefix) - 1; p++)
++                        record[k++] = prefix[p];
++                    for (size_t p = 0; p < length; p++)
++                        record[k++] = line[p];
++                    record[k++] = '\n';
++                    if (write(fd, record, k) != (ssize_t)k)
++                        incomplete = 1;
++                    emitted++;
++                }
++            }
++            length = 0;
++            overflow = 0;
++        }
++    }
++    if (n < 0 || length || overflow)
++        incomplete = 1;
++done:
++    (void)close(maps);
++    if (incomplete)
++        (void)write(fd, truncated, sizeof(truncated) - 1);
++    else
++        (void)write(fd, end, sizeof(end) - 1);
++out:
++    errno = saved_errno;
++}
++#endif
+ 
+ static void crash_kmsg_prepare(void)
+ {
+@@ -45,8 +158,59 @@
+     errno = saved_errno;
+ }
+ 
+-static void crash_kmsg_diag(int signal)
++#ifdef __aarch64__
++/* Called only after the original fixed crash marker has been attempted. */
++static __attribute__((noinline)) void crash_kmsg_context(int fd, int pid1,
++        int signal, siginfo_t *siginfo, void *data)
+ {
++    ucontext_t *context = data;
++    unsigned long pc = 0, lr = 0, sp = 0, fault = 0;
++    unsigned long anchor = (unsigned long)(void *)&signal_crash;
++    unsigned code = siginfo ? (unsigned)siginfo->si_code : 0;
++    int fault_valid = 0;
++    char record[192], *p = record;
++
++    if (context) {
++        pc = context->uc_mcontext.pc;
++        lr = context->uc_mcontext.regs[30];
++        sp = context->uc_mcontext.sp;
++    }
++    if (siginfo) {
++        fault_valid = (signal == SIGSEGV &&
++                (siginfo->si_code == SEGV_MAPERR || siginfo->si_code == SEGV_ACCERR)) ||
++                (signal == SIGBUS && (siginfo->si_code == BUS_ADRALN ||
++                siginfo->si_code == BUS_ADRERR || siginfo->si_code == BUS_OBJERR));
++        if (fault_valid)
++            fault = (unsigned long)siginfo->si_addr;
++    }
++    p = crash_diag_text(p, "<0>X6818_PROCD_CONTEXT pid1=");
++    *p++ = pid1 ? '1' : '0';
++    p = crash_diag_text(p, " pc=0x");
++    p = crash_diag_hex(p, pc, 16);
++    p = crash_diag_text(p, " lr=0x");
++    p = crash_diag_hex(p, lr, 16);
++    p = crash_diag_text(p, " sp=0x");
++    p = crash_diag_hex(p, sp, 16);
++    p = crash_diag_text(p, " fault=0x");
++    p = crash_diag_hex(p, fault, 16);
++    p = crash_diag_text(p, " fault_valid=");
++    *p++ = fault_valid ? '1' : '0';
++    p = crash_diag_text(p, " code=0x");
++    p = crash_diag_hex(p, code, 8);
++    p = crash_diag_text(p, " anchor=0x");
++    p = crash_diag_hex(p, anchor, 16);
++    *p++ = '\n';
++    if ((size_t)(p - record) == CRASH_CONTEXT_BYTES)
++        (void)write(fd, record, p - record);
++}
++#endif
++
++static void crash_kmsg_diag(int signal, siginfo_t *siginfo, void *data)
++{
++#ifndef __aarch64__
++    (void)siginfo;
++    (void)data;
++#endif
+     static const char segv_pid1[] = "<0>X6818_PROCD_CRASH pid1=1 signal=SIGSEGV\n";
+     static const char segv_child[] = "<0>X6818_PROCD_CRASH pid1=0 signal=SIGSEGV\n";
+     static const char bus_pid1[] = "<0>X6818_PROCD_CRASH pid1=1 signal=SIGBUS\n";
+@@ -73,8 +237,12 @@
+             message = pid1 ? bus_pid1 : bus_child;
+             length = sizeof(bus_pid1) - 1;
+         }
+-        if (message)
++        if (message) {
+             (void)write(fd, message, length);
++#ifdef __aarch64__
++            crash_kmsg_context(fd, pid1, signal, siginfo, data);
++#endif
++        }
+     }
+     errno = saved_errno;
+ }
+@@ -128,7 +296,7 @@
+ static void signal_crash(int signal, siginfo_t *siginfo, void *data)
+ {
+ #ifdef X6818_CRASH_KMSG_DIAGNOSTIC
+-    crash_kmsg_diag(signal);
++    crash_kmsg_diag(signal, siginfo, data);
+ #endif
+ 	ERROR("Rebooting as procd has crashed\n");
+ 	do_reboot();
+@@ -171,4 +339,7 @@
+ #ifndef DISABLE_INIT
+ 	reboot(RB_DISABLE_CAD);
+ #endif
++#if defined(X6818_CRASH_KMSG_DIAGNOSTIC) && defined(__aarch64__)
++    crash_kmsg_maps();
++#endif
+ }

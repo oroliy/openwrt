@@ -1,0 +1,107 @@
+--- a/signal.c
++++ b/signal.c
+@@ -14,10 +14,71 @@
+ 
+ #include <sys/reboot.h>
+ #include <sys/types.h>
++#ifdef X6818_CRASH_KMSG_DIAGNOSTIC
++#include <errno.h>
++#include <fcntl.h>
++#include <signal.h>
++#include <sys/stat.h>
++#include <sys/sysmacros.h>
++#endif
+ 
+ #include <unistd.h>
+ 
+ #include "procd.h"
++
++#ifdef X6818_CRASH_KMSG_DIAGNOSTIC
++static volatile sig_atomic_t crash_kmsg_fd = -1;
++
++static void crash_kmsg_prepare(void)
++{
++    int saved_errno = errno;
++    int fd = open("/dev/kmsg", O_WRONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW);
++
++    if (fd >= 0) {
++        struct stat st;
++        if (fstat(fd, &st) == 0 && S_ISCHR(st.st_mode)
++                && major(st.st_rdev) == 1 && minor(st.st_rdev) == 11)
++            crash_kmsg_fd = fd;
++        else
++            (void)close(fd);
++    }
++    errno = saved_errno;
++}
++
++static void crash_kmsg_diag(int signal)
++{
++    static const char segv_pid1[] = "<0>X6818_PROCD_CRASH pid1=1 signal=SIGSEGV\n";
++    static const char segv_child[] = "<0>X6818_PROCD_CRASH pid1=0 signal=SIGSEGV\n";
++    static const char bus_pid1[] = "<0>X6818_PROCD_CRASH pid1=1 signal=SIGBUS\n";
++    static const char bus_child[] = "<0>X6818_PROCD_CRASH pid1=0 signal=SIGBUS\n";
++    const char *message = NULL;
++    size_t length = 0;
++    int saved_errno = errno;
++    int fd = crash_kmsg_fd;
++
++    /* Dispositions/fd survive fork until exec; identify that context exactly. */
++    if (fd >= 0) {
++        struct stat st;
++        /* A fork child may have closed/reused this descriptor before exec. */
++        if (fstat(fd, &st) != 0 || !S_ISCHR(st.st_mode)
++                || major(st.st_rdev) != 1 || minor(st.st_rdev) != 11) {
++            errno = saved_errno;
++            return;
++        }
++        int pid1 = getpid() == 1;
++        if (signal == SIGSEGV) {
++            message = pid1 ? segv_pid1 : segv_child;
++            length = sizeof(segv_pid1) - 1;
++        } else if (signal == SIGBUS) {
++            message = pid1 ? bus_pid1 : bus_child;
++            length = sizeof(bus_pid1) - 1;
++        }
++        if (message)
++            (void)write(fd, message, length);
++    }
++    errno = saved_errno;
++}
++#endif
+ 
+ static void do_reboot(void)
+ {
+@@ -66,6 +127,9 @@
+ 
+ static void signal_crash(int signal, siginfo_t *siginfo, void *data)
+ {
++#ifdef X6818_CRASH_KMSG_DIAGNOSTIC
++    crash_kmsg_diag(signal);
++#endif
+ 	ERROR("Rebooting as procd has crashed\n");
+ 	do_reboot();
+ }
+@@ -90,6 +154,10 @@
+ 	signal(SIGPIPE, SIG_IGN);
+ 	if (getpid() != 1)
+ 		return;
++#ifdef X6818_CRASH_KMSG_DIAGNOSTIC
++    crash_kmsg_prepare();
++#endif
++
+ 	sigaction(SIGTERM, &sa_shutdown, NULL);
+ 	sigaction(SIGINT, &sa_shutdown, NULL);
+ 	sigaction(SIGUSR1, &sa_shutdown, NULL);
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -54,6 +54,9 @@
+ ADD_EXECUTABLE(procd ${SOURCES})
+ TARGET_LINK_LIBRARIES(procd ${LIBS})
+ SET_TARGET_PROPERTIES(procd PROPERTIES COMPILE_DEFINITIONS "HAS_UDEBUG")
++IF(X6818_CRASH_KMSG_DIAGNOSTIC)
++  TARGET_COMPILE_DEFINITIONS(procd PRIVATE X6818_CRASH_KMSG_DIAGNOSTIC)
++ENDIF()
+ INSTALL(TARGETS procd
+ 	RUNTIME DESTINATION ${CMAKE_INSTALL_SBINDIR}
+ )

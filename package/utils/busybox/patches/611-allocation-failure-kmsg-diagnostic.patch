@@ -1,0 +1,40 @@
+--- a/libbb/xfuncs_printf.c
++++ b/libbb/xfuncs_printf.c
+@@ -52,11 +52,16 @@
+ void FAST_FUNC bb_oom_diag(const char *op, size_t requested, int saved_errno,
+                            const void *caller)
+ {
+-    char buf[160];
+-    char *p = buf;
++    char buf[3 + 160];
++    char *message = buf + 3;
++    char *p = message;
+     char *end = buf + sizeof(buf);
+     int old_errno = errno;
+-
++    int fd;
++
++    buf[0] = '<';
++    buf[1] = '0';
++    buf[2] = '>';
+     p = oomdiag_text(p, end, "OOMDIAG op=");
+     p = oomdiag_text(p, end, op);
+     p = oomdiag_text(p, end, " requested=");
+@@ -67,7 +72,16 @@
+     p = oomdiag_number(p, end, (uintptr_t)caller, 16);
+     if (p < end)
+         *p++ = '\n';
+-    (void)write(STDERR_FILENO, buf, p - buf);
++    /* Best effort only: kernel kmsg I/O can allocate or wait. No retries. */
++    fd = open("/dev/kmsg", O_WRONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW);
++    if (fd >= 0) {
++        struct stat st;
++        if (fstat(fd, &st) == 0 && S_ISCHR(st.st_mode)
++                && major(st.st_rdev) == 1 && minor(st.st_rdev) == 11)
++            (void)write(fd, buf, p - buf);
++        (void)close(fd);
++    }
++    (void)write(STDERR_FILENO, message, p - message);
+     errno = old_errno;
+ }
+ 

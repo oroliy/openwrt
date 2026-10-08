@@ -1,0 +1,198 @@
+--- a/include/libbb.h
++++ b/include/libbb.h
+@@ -1453,6 +1453,7 @@
+ void bb_perror_nomsg(void) FAST_FUNC;
+ void bb_verror_msg(const char *s, va_list p, const char *strerr) FAST_FUNC;
+ void bb_die_memory_exhausted(void) NORETURN FAST_FUNC;
++void bb_oom_diag(const char *op, size_t requested, int saved_errno, const void *caller) FAST_FUNC;
+ void bb_logenv_override(void) FAST_FUNC;
+ 
+ /* x86 benefits from narrow exit code variables
+--- a/libbb/xfuncs_printf.c
++++ b/libbb/xfuncs_printf.c
+@@ -25,8 +25,57 @@
+  * fail, so callers never need to check for errors.  If it returned, it
+  * succeeded. */
+ 
++/* Diagnostic-only, best effort: stack formatting and one write, no malloc. */
++static char *oomdiag_text(char *p, char *end, const char *s)
++{
++    while (*s && p < end)
++        *p++ = *s++;
++    return p;
++}
++
++static char *oomdiag_number(char *p, char *end, unsigned long long n,
++                            unsigned int base)
++{
++    static const char digits[] = "0123456789abcdef";
++    char reversed[32];
++    unsigned int i = 0;
++
++    do {
++        reversed[i++] = digits[n % base];
++        n /= base;
++    } while (n && i < sizeof(reversed));
++    while (i && p < end)
++        *p++ = reversed[--i];
++    return p;
++}
++
++void FAST_FUNC bb_oom_diag(const char *op, size_t requested, int saved_errno,
++                           const void *caller)
++{
++    char buf[160];
++    char *p = buf;
++    char *end = buf + sizeof(buf);
++    int old_errno = errno;
++
++    p = oomdiag_text(p, end, "OOMDIAG op=");
++    p = oomdiag_text(p, end, op);
++    p = oomdiag_text(p, end, " requested=");
++    p = oomdiag_number(p, end, requested, 10);
++    p = oomdiag_text(p, end, " errno=");
++    p = oomdiag_number(p, end, (unsigned int)saved_errno, 10);
++    p = oomdiag_text(p, end, " caller=0x");
++    p = oomdiag_number(p, end, (uintptr_t)caller, 16);
++    if (p < end)
++        *p++ = '\n';
++    (void)write(STDERR_FILENO, buf, p - buf);
++    errno = old_errno;
++}
++
+ void FAST_FUNC bb_die_memory_exhausted(void)
+ {
++    /* Also identify any direct caller outside the instrumented allocators. */
++    bb_oom_diag("bb_die_unknown_size", SIZE_MAX, errno,
++                __builtin_return_address(0));
+ 	bb_simple_error_msg_and_die(bb_msg_memory_exhausted);
+ }
+ 
+@@ -39,8 +88,11 @@
+ void* FAST_FUNC malloc_or_warn(size_t size)
+ {
+ 	void *ptr = malloc(size);
+-	if (ptr == NULL && size != 0)
++	if (ptr == NULL && size != 0) {
++		int saved_errno = errno;
++		bb_oom_diag("malloc_or_warn", size, saved_errno, __builtin_return_address(0));
+ 		bb_simple_error_msg(bb_msg_memory_exhausted);
++	}
+ 	return ptr;
+ }
+ 
+@@ -48,8 +100,11 @@
+ void* FAST_FUNC xmalloc(size_t size)
+ {
+ 	void *ptr = malloc(size);
+-	if (ptr == NULL && size != 0)
++	if (ptr == NULL && size != 0) {
++		int saved_errno = errno;
++		bb_oom_diag("xmalloc", size, saved_errno, __builtin_return_address(0));
+ 		bb_die_memory_exhausted();
++	}
+ 	return ptr;
+ }
+ 
+@@ -59,8 +114,11 @@
+ void* FAST_FUNC xrealloc(void *ptr, size_t size)
+ {
+ 	ptr = realloc(ptr, size);
+-	if (ptr == NULL && size != 0)
++	if (ptr == NULL && size != 0) {
++		int saved_errno = errno;
++		bb_oom_diag("xrealloc", size, saved_errno, __builtin_return_address(0));
+ 		bb_die_memory_exhausted();
++	}
+ 	return ptr;
+ }
+ #endif /* DMALLOC */
+@@ -83,8 +141,11 @@
+ 
+ 	t = strdup(s);
+ 
+-	if (t == NULL)
++	if (t == NULL) {
++		int saved_errno = errno;
++		bb_oom_diag("xstrdup", strlen(s) + 1, saved_errno, __builtin_return_address(0));
+ 		bb_die_memory_exhausted();
++	}
+ 
+ 	return t;
+ }
+@@ -97,8 +158,11 @@
+ 
+ 	t = strndup(s, n);
+ 
+-	if (t == NULL)
++	if (t == NULL) {
++		int saved_errno = errno;
++		bb_oom_diag("xstrndup", strnlen(s, n) + 1, saved_errno, __builtin_return_address(0));
+ 		bb_die_memory_exhausted();
++	}
+ 
+ 	return t;
+ }
+@@ -124,8 +188,11 @@
+ void* FAST_FUNC xmmap_anon(size_t size)
+ {
+ 	void *p = mmap_anon(size);
+-	if (p == MAP_FAILED)
++	if (p == MAP_FAILED) {
++		int saved_errno = errno;
++		bb_oom_diag("xmmap_anon", size, saved_errno, __builtin_return_address(0));
+ 		bb_die_memory_exhausted();
++	}
+ 	return p;
+ }
+ 
+@@ -344,15 +411,21 @@
+ 	r = vasprintf(&string_ptr, format, p);
+ 	va_end(p);
+ 
+-	if (r < 0)
++	if (r < 0) {
++		int saved_errno = errno;
++		bb_oom_diag("xasprintf_unknown_size", SIZE_MAX, saved_errno, __builtin_return_address(0));
+ 		bb_die_memory_exhausted();
++	}
+ 	return string_ptr;
+ }
+ 
+ void FAST_FUNC xsetenv(const char *key, const char *value)
+ {
+-	if (setenv(key, value, 1))
++	if (setenv(key, value, 1)) {
++		int saved_errno = errno;
++		bb_oom_diag("xsetenv_unknown_size", SIZE_MAX, saved_errno, __builtin_return_address(0));
+ 		bb_die_memory_exhausted();
++	}
+ }
+ 
+ /* Handles "VAR=VAL" strings, even those which are part of environ
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -1640,8 +1640,10 @@
+ 		if (blocksize < MINSIZE)
+ 			blocksize = MINSIZE;
+ 		len = sizeof(struct stack_block) - MINSIZE + blocksize;
+-		if (len < blocksize)
++		if (len < blocksize) {
++			bb_oom_diag("ash_stalloc_overflow", nbytes, 0, __builtin_return_address(0));
+ 			ash_msg_and_raise_error(bb_msg_memory_exhausted);
++		}
+ 		INT_OFF;
+ 		sp = ckmalloc(len);
+ 		sp->prev = g_stackp;
+@@ -1742,8 +1744,10 @@
+ 	size_t newlen;
+ 
+ 	newlen = g_stacknleft * 2;
+-	if (newlen < g_stacknleft)
++	if (newlen < g_stacknleft) {
++		bb_oom_diag("ash_growstack_overflow", min, 0, __builtin_return_address(0));
+ 		ash_msg_and_raise_error(bb_msg_memory_exhausted);
++	}
+ 	min = SHELL_ALIGN(min | 128);
+ 	if (newlen < min)
+ 		newlen += min;
