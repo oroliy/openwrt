@@ -250,7 +250,8 @@ echo "ok: rejected short partition stream during stage2 write"
 # 5. Test platform_copy_config
 export BACKUP_FILE="sysupgrade.tgz"
 export UPGRADE_BACKUP="$tmp/test_backup.tgz"
-echo "MOCK_BACKUP_CONTENT" > "$UPGRADE_BACKUP"
+echo "MOCK_BACKUP_CONTENT" > "$tmp/backup-content"
+tar czf "$UPGRADE_BACKUP" -C "$tmp" backup-content
 
 copied_backup=""
 mount() {
@@ -284,7 +285,7 @@ boot_hook_add() { :; }
 mount() {
 	local target
 	for target in "$@"; do :; done
-	echo "MOCK_BACKUP_FOR_RESTORE" > "$target/$BACKUP_FILE"
+	command cp "$UPGRADE_BACKUP" "$target/$BACKUP_FILE"
 	return 0
 }
 umount() { return 0; }

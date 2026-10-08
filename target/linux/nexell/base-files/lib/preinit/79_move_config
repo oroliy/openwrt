@@ -3,6 +3,13 @@
 # Copyright (C) 2026 x6818 port
 # Move restored sysupgrade configuration from boot partition (p1) to root.
 
+x6818_config_restore_failure() {
+	echo "Configuration restore failed: $*" >&2
+	# preinit's hook dispatcher does not propagate callback return codes.
+	printf '%s\n' "$*" > /tmp/.sysupgrade-restore-failed
+	return 1
+}
+
 move_config() {
 	local partdev p_node
 	local mnt_dir="/tmp/sysupgrade_boot"
@@ -14,17 +21,36 @@ move_config() {
 			/*) p_node="$partdev" ;;
 			*)  p_node="/dev/$partdev" ;;
 		esac
-		mkdir -p "$mnt_dir"
+		mkdir -p "$mnt_dir" || {
+			x6818_config_restore_failure "Cannot create $mnt_dir"
+			return 1
+		}
 		if mount -t vfat -o rw,noatime "$p_node" "$mnt_dir" 2>/dev/null || mount -o rw,noatime "$p_node" "$mnt_dir"; then
 			if [ -f "$mnt_dir/${BACKUP_FILE:-sysupgrade.tgz}" ]; then
+				if ! tar tzf "$mnt_dir/${BACKUP_FILE:-sysupgrade.tgz}" >/dev/null; then
+					x6818_config_restore_failure "Invalid archive on $p_node"
+					umount "$mnt_dir" || true
+					return 1
+				fi
 				echo "Restoring configuration archive from boot partition ($p_node)..."
-				mv -f "$mnt_dir/${BACKUP_FILE:-sysupgrade.tgz}" /
+				if ! mv -f "$mnt_dir/${BACKUP_FILE:-sysupgrade.tgz}" /; then
+					x6818_config_restore_failure "Cannot move archive from $p_node"
+					umount "$mnt_dir" || true
+					return 1
+				fi
 				sync
 			fi
-			umount "$mnt_dir"
+			umount "$mnt_dir" || {
+				x6818_config_restore_failure "Cannot unmount $mnt_dir"
+				return 1
+			}
 			rmdir "$mnt_dir" 2>/dev/null || true
+		else
+			x6818_config_restore_failure "Cannot mount $p_node"
+			return 1
 		fi
 	fi
+	return 0
 }
 
 boot_hook_add preinit_mount_root move_config

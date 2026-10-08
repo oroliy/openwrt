@@ -2,15 +2,20 @@
 # Copyright (C) 2010 Vertical Communications
 
 missing_lines() {
-	local file1 file2 line
+	local file1 file2 line rc
 	file1="$1"
 	file2="$2"
 	oIFS="$IFS"
 	IFS=":"
 	while read line; do
 		set -- $line
-		grep -q "^$1:" "$file2" || echo "$line"
-	done < "$file1"
+		if grep -q "^$1:" "$file2"; then rc=0; else rc=$?; fi
+		case "$rc" in
+			0) ;;
+			1) echo "$line" || { IFS="$oIFS"; return 1; } ;;
+			*) IFS="$oIFS"; return "$rc" ;;
+		esac
+	done < "$file1" || { IFS="$oIFS"; return 1; }
 	IFS="$oIFS"
 }
 
@@ -33,22 +38,66 @@ compose_rootfs_mount_options() {
 	echo $mount_options
 }
 
+config_restore_failure() {
+	echo "Configuration restore failed: $*" >&2
+	# Retain the archive through /etc/init.d/done for manual recovery.
+	printf '%s\n' "$*" > /tmp/.sysupgrade-restore-failed
+	return 1
+}
+
 do_mount_root() {
 	mount_root start "$(compose_rootfs_mount_options)"
 	boot_run_hook preinit_mount_root
-	[ -f /sysupgrade.tgz -o -f /tmp/sysupgrade.tar ] && {
+	[ ! -f /tmp/.sysupgrade-restore-failed ] || return 1
+	if [ -f /sysupgrade.tgz ] || [ -f /tmp/sysupgrade.tar ]; then
+		# Check all input archives before changing configuration or accounts.
+		if [ -f /sysupgrade.tgz ] && ! tar tzf /sysupgrade.tgz >/dev/null; then
+			config_restore_failure "Invalid /sysupgrade.tgz"
+			return 1
+		fi
+		if [ -f /tmp/sysupgrade.tar ] && ! tar tf /tmp/sysupgrade.tar >/dev/null; then
+			config_restore_failure "Invalid /tmp/sysupgrade.tar"
+			return 1
+		fi
+		rm -f /tmp/.sysupgrade-restore-complete || {
+			config_restore_failure "Cannot reset restoration status"
+			return 1
+		}
 		echo "- config restore -"
-		cp /etc/passwd /etc/group /etc/shadow /tmp
-		cd /
-		[ -f /sysupgrade.tgz ] && tar xzf /sysupgrade.tgz
-		[ -f /tmp/sysupgrade.tar ] && tar xf /tmp/sysupgrade.tar
-		missing_lines /tmp/passwd /etc/passwd >> /etc/passwd
-		missing_lines /tmp/group /etc/group >> /etc/group
-		missing_lines /tmp/shadow /etc/shadow >> /etc/shadow
+		cp /etc/passwd /etc/group /etc/shadow /tmp || {
+			config_restore_failure "Cannot preserve current accounts"
+			return 1
+		}
+		cd / || {
+			config_restore_failure "Cannot enter root directory"
+			return 1
+		}
+		if [ -f /sysupgrade.tgz ] && ! tar xzf /sysupgrade.tgz; then
+			config_restore_failure "Cannot extract /sysupgrade.tgz"
+			return 1
+		fi
+		if [ -f /tmp/sysupgrade.tar ] && ! tar xf /tmp/sysupgrade.tar; then
+			config_restore_failure "Cannot extract /tmp/sysupgrade.tar"
+			return 1
+		fi
+		if ! missing_lines /tmp/passwd /etc/passwd >> /etc/passwd ||
+		   ! missing_lines /tmp/group /etc/group >> /etc/group ||
+		   ! missing_lines /tmp/shadow /etc/shadow >> /etc/shadow; then
+			config_restore_failure "Cannot merge restored accounts"
+			return 1
+		fi
 		rm /tmp/passwd /tmp/group /tmp/shadow
 		# Prevent configuration corruption on a power loss
-		sync
-	}
+		sync || {
+			config_restore_failure "Cannot sync restored configuration"
+			return 1
+		}
+		printf '%s\n' complete > /tmp/.sysupgrade-restore-complete || {
+			config_restore_failure "Cannot record successful restoration"
+			return 1
+		}
+	fi
+	return 0
 }
 
 [ "$INITRAMFS" = "1" ] || boot_hook_add preinit_main do_mount_root

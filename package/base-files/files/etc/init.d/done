@@ -3,9 +3,21 @@
 
 START=95
 boot() {
+	if [ -f /tmp/.sysupgrade-restore-failed ]; then
+		echo "Configuration restore failed; retaining backup archive for recovery" >&2
+		return 1
+	fi
+	if { [ -f /sysupgrade.tgz ] || [ -f /tmp/sysupgrade.tar ]; } &&
+	   [ ! -f /tmp/.sysupgrade-restore-complete ]; then
+		echo "Configuration restoration not confirmed; retaining backup archive" >&2
+		return 1
+	fi
+	# mount_root done returns -1 when rootfs_data is absent, including normal
+	# ext4 and initramfs roots. Preserve the existing volume-less boot path.
 	mount_root done
 	rm -f /sysupgrade.tgz && sync
 	rm -f /tmp/sysupgrade.tar && sync
+	rm -f /tmp/.sysupgrade-restore-complete
 
 	# process user commands
 	[ -f /etc/rc.local ] && {
