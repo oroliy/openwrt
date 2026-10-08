@@ -1,0 +1,37 @@
+--- a/arch/arm64/kernel/psci.c
++++ b/arch/arm64/kernel/psci.c
+@@ -18,6 +18,7 @@
+ #include <uapi/linux/psci.h>
+ 
+ #include <asm/cpu_ops.h>
++#include <asm/cputype.h>
+ #include <asm/errno.h>
+ #include <asm/smp_plat.h>
+ 
+@@ -47,13 +48,25 @@
+ }
+ 
+ #ifdef CONFIG_HOTPLUG_CPU
++/* This board's BL31 denies CPU_OFF for both cluster leaders. */
++static bool cpu_psci_x6818_cluster_leader(unsigned int cpu)
++{
++	return of_machine_is_compatible("nexell,x6818") &&
++	       MPIDR_AFFINITY_LEVEL(cpu_logical_map(cpu), 0) == 0;
++}
++
+ static bool cpu_psci_cpu_can_disable(unsigned int cpu)
+ {
+-	return !psci_tos_resident_on(cpu);
++	return !cpu_psci_x6818_cluster_leader(cpu) &&
++	       !psci_tos_resident_on(cpu);
+ }
+ 
+ static int cpu_psci_cpu_disable(unsigned int cpu)
+ {
++	/* CPU_OFF would return, and arm64 cpu_die() would then BUG(). */
++	if (cpu_psci_x6818_cluster_leader(cpu))
++		return -EOPNOTSUPP;
++
+ 	/* Fail early if we don't have CPU_OFF support */
+ 	if (!psci_ops.cpu_off)
+ 		return -EOPNOTSUPP;
