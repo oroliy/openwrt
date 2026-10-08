@@ -4,7 +4,12 @@
 # Automatically grow the root/overlay partition to fill the physical storage device
 # (SD card or eMMC) on first boot.
 
+# A RAM boot must never alter storage discovered beneath its temporary root.
+[ "${INITRAMFS:-}" = "1" ] && exit 0
 mounts=${OVERLAY_MOUNTS_FILE:-/proc/mounts}
+case "$(awk '$2 == "/" { print $3; exit }' "$mounts" 2>/dev/null)" in
+	rootfs|tmpfs|ramfs) exit 0 ;;
+esac
 mountpoint=${OVERLAY_MOUNTPOINT:-/overlay}
 sysfs_block=${SYS_CLASS_BLOCK:-/sys/class/block}
 

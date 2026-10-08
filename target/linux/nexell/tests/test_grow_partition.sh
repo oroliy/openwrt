@@ -39,6 +39,12 @@ test() {
 	command test "$@"
 }
 
+# Explicit functions intercept writers even in an ash with internal applets.
+# Keep isolated PATH cases unable to invoke tools that the fixture hid.
+sfdisk() { case ":$PATH:" in *":$bin:"*) "$bin/sfdisk" "$@" ;; *) return 127 ;; esac; }
+partx() { case ":$PATH:" in *":$bin:"*) "$bin/partx" "$@" ;; *) return 127 ;; esac; }
+losetup() { "$bin/losetup" "$@"; }
+logger() { "$bin/logger" "$@"; }
 run_hook() {
 	log=$1
 	shift
@@ -48,6 +54,19 @@ run_hook() {
 		. "$script"
 	)
 }
+
+# RAM boots must never reach partition writers, even with a mounted-looking
+# overlay and a discoverable eMMC p2 that would otherwise need expansion.
+INITRAMFS=1 run_hook "$tmp/ram-initramfs"
+[ ! -f "$tmp/ram-initramfs.sfdisk" ] || { echo "FAIL: INITRAMFS boot wrote partition table" >&2; exit 1; }
+echo "ok: INITRAMFS skips partition growth before device discovery"
+for ramfs in rootfs tmpfs ramfs; do
+	printf 'rootfs / %s rw 0 0\n%s /overlay ext4 rw 0 0\n' "$ramfs" "$backing" > "$mounts"
+	INITRAMFS= run_hook "$tmp/ram-$ramfs"
+	[ ! -f "$tmp/ram-$ramfs.sfdisk" ] || { echo "FAIL: $ramfs root wrote partition table" >&2; exit 1; }
+done
+printf '%s /overlay ext4 rw 0 0\n' "$backing" > "$mounts"
+echo "ok: RAM filesystem roots skip partition growth without INITRAMFS export"
 
 # 1. Normal run: unallocated space > 10MB, sfdisk + partx present
 run_hook "$tmp/normal"
@@ -93,7 +112,14 @@ run_hook "$tmp/no-sfdisk" "$logger_bin"
 echo "ok: missing sfdisk fails open and does not crash"
 
 # 6. Non-block backing: exits cleanly
-test() { command test "$@"; }
+test() {
+	# The target board really has /dev/mmcblk0p2; force this fixture's
+	# non-block predicate rather than depending on the host device inventory.
+	if command [ "$1" = -b ] && command [ "$2" = "$backing" ]; then
+		return 1
+	fi
+	command test "$@"
+}
 run_hook "$tmp/non-block"
 [ ! -f "$tmp/non-block.sfdisk" ] || { echo "FAIL: non-block backing triggered sfdisk" >&2; exit 1; }
 echo "ok: non-block backing is skipped"

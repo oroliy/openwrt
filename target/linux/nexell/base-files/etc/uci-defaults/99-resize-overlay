@@ -1,7 +1,12 @@
 #!/bin/sh
 
 # This hook grows an already mounted ext4 filesystem (either /overlay or root /).
+# A RAM boot must never alter storage discovered beneath its temporary root.
+[ "${INITRAMFS:-}" = "1" ] && exit 0
 mounts=${OVERLAY_MOUNTS_FILE:-/proc/mounts}
+case "$(awk '$2 == "/" { print $3; exit }' "$mounts" 2>/dev/null)" in
+	rootfs|tmpfs|ramfs) exit 0 ;;
+esac
 mountpoint=${OVERLAY_MOUNTPOINT:-/overlay}
 entry=$(awk -v m="$mountpoint" '$2 == m { print; exit }' "$mounts" 2>/dev/null)
 if [ -z "$entry" ]; then

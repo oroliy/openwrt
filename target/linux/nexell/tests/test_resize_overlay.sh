@@ -25,11 +25,28 @@ test() {
 	fi
 	command test "$@"
 }
+# BusyBox ash can select an internal applet before a PATH mock.
+losetup() { "$bin/losetup" "$@"; }
+resize2fs() { case ":$PATH:" in *":$bin:"*) "$bin/resize2fs" "$@" ;; *) return 127 ;; esac; }
+logger() { "$bin/logger" "$@"; }
 run_hook() {
 	log=$1
 	mounts_file=${2:-$mounts}
 	( export RESIZE_LOG=$log LOSETUP_LOG="${LOSETUP_LOG:-$tmp/losetup.log}" PATH="${3:-$bin:$PATH}" OVERLAY_MOUNTS_FILE="$mounts_file"; . "$script" )
 }
+
+# INITRAMFS or a RAM filesystem root must skip without touching a live-looking
+# ext4 overlay. An absent environment export must not permit storage writes.
+INITRAMFS=1 run_hook "$tmp/log.ram-initramfs"
+[ ! -s "$tmp/log.ram-initramfs" ] || { echo "FAIL: INITRAMFS boot resized storage" >&2; exit 1; }
+echo "ok: INITRAMFS skips filesystem growth"
+for ramfs in rootfs tmpfs ramfs; do
+	printf 'rootfs / %s rw 0 0\n%s /overlay ext4 rw 0 0\n' "$ramfs" "$backing" > "$mounts"
+	INITRAMFS= run_hook "$tmp/log.ram-$ramfs"
+	[ ! -s "$tmp/log.ram-$ramfs" ] || { echo "FAIL: $ramfs root resized storage" >&2; exit 1; }
+done
+printf '%s /overlay ext4 rw 0 0\n' "$backing" > "$mounts"
+echo "ok: RAM filesystem roots skip filesystem growth without INITRAMFS export"
 
 run_hook "$tmp/log"
 [ "$(sed -n '1p' "$tmp/log")" = "$backing" ] || { echo "FAIL: mounted ext4 backing path was not passed to resize2fs" >&2; exit 1; }
