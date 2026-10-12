@@ -1,0 +1,38 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# Publish all interface addresses, eight rows per page, for LCD4Linux.
+output="${1:-/var/run/x6818-addresses}"
+mode="${2:-}"
+page=0
+sample=0
+trap 'rm -f "$output.tmp.$$" "$output.all.$$"; exit 0' INT TERM
+
+while :; do
+	if ip -o address show >"$output.all.$$" 2>/dev/null; then
+		awk -v page="$page" '
+		BEGIN { n=0 }
+		$3 == "inet" || $3 == "inet6" {
+			if ($0 ~ / tentative / || $0 ~ / dadfailed /) next
+			dev=$2; sub(/@.*/, "", dev)
+			rows[++n]=dev "  " ($3 == "inet" ? "IPv4" : "IPv6") "  " $4
+		}
+		END {
+			pages=int((n+7)/8); if (pages < 1) pages=1
+			p=page % pages
+			print "Local addresses: " n "  Page " (p+1) "/" pages
+			for (i=1; i<=8; i++) {
+				j=p*8+i
+				print j<=n ? rows[j] : (i==1 && n==0 ? "unassigned" : "")
+			}
+		}' "$output.all.$$" >"$output.tmp.$$"
+	else
+		printf 'Local addresses: unavailable\nunassigned\n\n\n\n\n\n\n\n' >"$output.tmp.$$"
+	fi
+	mv -f "$output.tmp.$$" "$output"
+	rm -f "$output.all.$$"
+	[ "$mode" = --once ] && exit 0
+	# Keep each page visible for six seconds while refreshing addresses every two.
+	sample=$((sample + 1))
+	[ $((sample % 3)) -ne 0 ] || page=$((page + 1))
+	sleep 2
+done
