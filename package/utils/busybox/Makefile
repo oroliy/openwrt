@@ -6,7 +6,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=busybox
 PKG_VERSION:=1.37.0
-PKG_RELEASE:=6
+PKG_RELEASE:=7
 PKG_FLAGS:=essential
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
@@ -17,6 +17,12 @@ PKG_HASH:=3311dff32e746499f4df0d5df04d7eb396382d7e108bb9250e7b519b837043a4
 PKG_BUILD_DEPENDS:=BUSYBOX_CONFIG_PAM:libpam
 PKG_BUILD_PARALLEL:=1
 PKG_BUILD_FLAGS:=lto
+ifeq ($(CONFIG_TARGET_nexell_s5p6818_arm64),y)
+  # BusyBox declares writable applet globals as const pointers in other
+  # translation units. Use its documented compatibility mode on x6818
+  # instead of relying on that trick across GCC's LTO compilation.
+  TARGET_CFLAGS += -DBB_GLOBAL_CONST=
+endif
 ifeq ($(CONFIG_SOFT_FLOAT),)
   PKG_BUILD_FLAGS+=no-mips16
 endif
