@@ -68,7 +68,9 @@ _procd_call() {
 }
 
 _procd_wrapper() {
-	procd_lock
+	# Autostart queries used by sysupgrade backups only inspect rc.d links.
+	# They must not wait for a service still starting or stopping.
+	[ "${action:-}" = enabled ] || procd_lock
 	while [ -n "$1" ]; do
 		eval "$1() { _procd_call _$1 \"\$@\"; }"
 		shift

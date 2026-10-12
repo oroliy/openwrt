@@ -448,5 +448,6 @@ else
 	[ $USE_CURR_PART -eq 1 ] && json_add_boolean use_curr_part 1
 	json_close_object
 
-	ubus call system sysupgrade "$(json_dump)"
+	# PID1 repeats image validation, which can exceed ubus default 30 seconds.
+	ubus -t 180 call system sysupgrade "$(json_dump)"
 fi
