@@ -8,7 +8,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=procd
-PKG_RELEASE:=4
+PKG_RELEASE:=5
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL=$(PROJECT_GIT)/project/procd.git
@@ -39,6 +39,9 @@ CMAKE_OPTIONS += -DEARLY_PATH="$(TARGET_INIT_PATH)"
 
 # A failed partition upgrade must leave Nexell in RAM for console recovery.
 CMAKE_OPTIONS += -DUPGRADE_FAILURE_RECOVERY=$(if $(CONFIG_TARGET_nexell),ON,OFF)
+
+# x6818 init-script workaround; PID1 and daemon scheduling remain unchanged.
+CMAKE_OPTIONS += -DX6818_INITD_SINGLE_CLUSTER=$(if $(CONFIG_TARGET_nexell_s5p6818_arm64),ON,OFF)
 
 # Explicit opt-in for the temporary Nexell RAM diagnostic candidate.
 CMAKE_OPTIONS += -DX6818_CRASH_KMSG_DIAGNOSTIC=$(if $(and $(CONFIG_TARGET_nexell),$(filter y,$(CONFIG_PROCD_X6818_CRASH_KMSG_DIAGNOSTIC))),ON,OFF)
