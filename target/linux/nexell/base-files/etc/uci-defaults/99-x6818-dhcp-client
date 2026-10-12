@@ -1,0 +1,20 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# x6818 is a DHCP client. Keep dnsmasq for local DNS resolution only.
+. /lib/functions.sh
+
+client_only() {
+	uci set "dhcp.$1.ignore=1"
+	uci set "dhcp.$1.dhcpv4=disabled"
+	uci set "dhcp.$1.dhcpv6=disabled"
+	uci set "dhcp.$1.ra=disabled"
+	uci set "dhcp.$1.ndp=disabled"
+}
+
+config_load dhcp
+config_foreach client_only dhcp
+uci commit dhcp || exit 1
+/etc/init.d/odhcpd disable
+# Defaults run before services start; stop an already running server on upgrades.
+/etc/init.d/odhcpd stop
+exit 0
