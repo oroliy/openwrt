@@ -1,0 +1,348 @@
+diff --git a/arch/arm64/boot/dts/nexell/s5p6818-x6818.dts b/arch/arm64/boot/dts/nexell/s5p6818-x6818.dts
+index dcedbd58a..a324c0cdf 100644
+--- a/arch/arm64/boot/dts/nexell/s5p6818-x6818.dts
++++ b/arch/arm64/boot/dts/nexell/s5p6818-x6818.dts
+@@ -34,6 +34,20 @@ framebuffer0: framebuffer {
+ 		};
+ 	};
+ 
++	thermal-zones {
++		/* Monitoring only; thermal protection needs separate validation. */
++		soc0-thermal {
++			polling-delay-passive = <0>;
++			polling-delay = <2000>;
++			thermal-sensors = <&tmu0>;
++		};
++		soc1-thermal {
++			polling-delay-passive = <0>;
++			polling-delay = <2000>;
++			thermal-sensors = <&tmu1>;
++		};
++	};
++
+ 	gpio_keys: gpio-keys {
+ 		compatible = "gpio-keys-polled";
+ 		poll-interval = <50>;
+@@ -400,3 +414,11 @@ &uart0 {
+ 	pinctrl-0 = <&uart0_pins>;
+ 	status = "okay";
+ };
++
++&tmu0 {
++	status = "okay";
++};
++
++&tmu1 {
++	status = "okay";
++};
+diff --git a/arch/arm64/boot/dts/nexell/s5p6818.dtsi b/arch/arm64/boot/dts/nexell/s5p6818.dtsi
+index 0ed7e5b3d..178dc8e0c 100644
+--- a/arch/arm64/boot/dts/nexell/s5p6818.dtsi
++++ b/arch/arm64/boot/dts/nexell/s5p6818.dtsi
+@@ -465,6 +465,33 @@ clocks: clock-controller@c0010000 {
+ 			status = "okay";
+ 		};
+ 
++		tmu_tieoff: syscon@c0011130 {
++			compatible = "nexell,s5p6818-tmu-tieoff", "syscon";
++			reg = <0xc0011130 0x4>;
++		};
++
++		tmu0: thermal-sensor@c0096000 {
++			compatible = "nexell,s5p6818-tmu";
++			reg = <0xc0096000 0x104>;
++			clocks = <&clocks NEXELL_CLK_BUS_PCLK>;
++			clock-names = "tmu_apbif";
++			nexell,tieoff = <&tmu_tieoff>;
++			nexell,channel = <0>;
++			#thermal-sensor-cells = <0>;
++			status = "disabled";
++		};
++
++		tmu1: thermal-sensor@c0097000 {
++			compatible = "nexell,s5p6818-tmu";
++			reg = <0xc0097000 0x104>;
++			clocks = <&clocks NEXELL_CLK_BUS_PCLK>;
++			clock-names = "tmu_apbif";
++			nexell,tieoff = <&tmu_tieoff>;
++			nexell,channel = <1>;
++			#thermal-sensor-cells = <0>;
++			status = "disabled";
++		};
++
+ 		nexell_reset: reset-controller@c0012000 {
+ 			compatible = "nexell,s5p6818-reset";
+ 			#reset-cells = <1>;
+diff --git a/drivers/clk/nexell/clk-s5p6818.c b/drivers/clk/nexell/clk-s5p6818.c
+index 698d85a3d..698c02cb3 100644
+--- a/drivers/clk/nexell/clk-s5p6818.c
++++ b/drivers/clk/nexell/clk-s5p6818.c
+@@ -467,6 +467,7 @@ static int nexell_clk_probe(struct platform_device *pdev)
+ 						       NULL, 0, bus_pclk);
+ 	if (IS_ERR(bus_pclk_hw))
+ 		return PTR_ERR(bus_pclk_hw);
++	ctrl->onecell->hws[NEXELL_CLK_BUS_PCLK] = bus_pclk_hw;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(nexell_clkgen_descs); i++) {
+ 		ret = nexell_clkgen_register(ctrl, &nexell_clkgen_descs[i]);
+diff --git a/drivers/thermal/Kconfig b/drivers/thermal/Kconfig
+index 61e7ae524..35f697f0b 100644
+--- a/drivers/thermal/Kconfig
++++ b/drivers/thermal/Kconfig
+@@ -17,6 +17,19 @@ menuconfig THERMAL
+ 
+ if THERMAL
+ 
++config NEXELL_S5P6818_THERMAL
++	tristate "Nexell S5P6818 temperature sensors"
++	depends on ARCH_NEXELL_S5P6818 || COMPILE_TEST
++	depends on OF
++	select MFD_SYSCON
++	select THERMAL_OF
++	help
++	  Read the two internal TMU probes using factory one-point trim.
++	  Temperatures are exposed through the thermal and hwmon interfaces.
++	  This driver uses polling and does not enable TMU interrupts.
++	  Select Y to provide early temperature monitoring on x6818 boards,
++	  or M to load the driver as a module. If unsure, say N.
++
+ config THERMAL_NETLINK
+ 	bool "Thermal netlink management"
+ 	depends on NET
+diff --git a/drivers/thermal/Makefile b/drivers/thermal/Makefile
+index 41c4d56be..8058014d9 100644
+--- a/drivers/thermal/Makefile
++++ b/drivers/thermal/Makefile
+@@ -33,6 +33,7 @@ thermal_sys-$(CONFIG_DEVFREQ_THERMAL) += devfreq_cooling.o
+ 
+ obj-$(CONFIG_K3_THERMAL)	+= k3_bandgap.o k3_j72xx_bandgap.o
+ # platform thermal drivers
++obj-$(CONFIG_NEXELL_S5P6818_THERMAL) += nexell-s5p6818-thermal.o
+ obj-y				+= broadcom/
+ obj-$(CONFIG_THERMAL_MMIO)		+= thermal_mmio.o
+ obj-$(CONFIG_SPEAR_THERMAL)	+= spear_thermal.o
+diff --git a/include/dt-bindings/clock/nexell,s5p6818-clock.h b/include/dt-bindings/clock/nexell,s5p6818-clock.h
+index 57587e8bc..55644000f 100644
+--- a/include/dt-bindings/clock/nexell,s5p6818-clock.h
++++ b/include/dt-bindings/clock/nexell,s5p6818-clock.h
+@@ -24,6 +24,8 @@
+ #define NEXELL_CLK_I2C1		17
+ #define NEXELL_CLK_I2C2		18
+ 
+-#define NEXELL_CLK_MAX		19
++#define NEXELL_CLK_BUS_PCLK	19
++
++#define NEXELL_CLK_MAX		20
+ 
+ #endif
+--- /dev/null
++++ b/drivers/thermal/nexell-s5p6818-thermal.c
+@@ -0,0 +1,155 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* S5P6818 TMU: register layout and one-point trim from Nexell's BSP. */
++#include <linux/bitfield.h>
++#include <linux/clk.h>
++#include <linux/delay.h>
++#include <linux/io.h>
++#include <linux/iopoll.h>
++#include <linux/mfd/syscon.h>
++#include <linux/module.h>
++#include <linux/platform_device.h>
++#include <linux/regmap.h>
++#include <linux/thermal.h>
++
++#include "thermal_hwmon.h"
++
++#define TMU_TRIMINFO	0x00
++#define TMU_CONTROL	0x20
++#define TMU_STATUS	0x28
++#define TMU_CURRENT_TEMP	0x40
++#define TMU_INTEN	0xb0
++#define TMU_INTSTAT	0xb4
++#define TMU_INTCLEAR	0xb8
++#define TMU_REMOTE_INTEN	0xc0
++#define TMU_REMOTE_INTSTAT 0xc4
++#define TMU_REMOTE_INTCLEAR 0xc8
++#define TMU_EMUL_CON	0x100
++#define TMU_CORE_EN	BIT(0)
++#define TMU_TRIP_EN	BIT(12)
++#define TMU_GAIN		GENMASK(11, 8)
++#define TMU_FILTER	GENMASK(15, 13)
++#define TMU_VREF		GENMASK(28, 24)
++#define TMU_FUSE_TIEOFF	0x00
++
++struct nexell_tmu {
++	void __iomem *base;
++	int trim;
++};
++
++static int nexell_tmu_get_temp(struct thermal_zone_device *tz, int *temp)
++{
++	struct nexell_tmu *tmu = thermal_zone_device_priv(tz);
++	u32 raw;
++
++	/* STATUS bit 0 means idle, not sample validity while sensing runs. */
++	raw = readl(tmu->base + TMU_CURRENT_TEMP) & 0xff;
++	/* Zero and full scale are not valid internal-probe measurements. */
++	if (!raw || raw == 0xff)
++		return -ENODATA;
++	*temp = ((int)raw - tmu->trim + 25) * 1000;
++	return 0;
++}
++
++static const struct thermal_zone_device_ops nexell_tmu_ops = {
++	.get_temp = nexell_tmu_get_temp,
++};
++
++static void nexell_tmu_stop(void *data)
++{
++	struct nexell_tmu *tmu = data;
++	u32 con = readl(tmu->base + TMU_CONTROL);
++
++	writel(con & ~TMU_CORE_EN, tmu->base + TMU_CONTROL);
++}
++
++static int nexell_tmu_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct thermal_zone_device *tz;
++	struct nexell_tmu *tmu;
++	struct regmap *tieoff;
++	struct clk *clk;
++	u32 channel, value, con;
++	int ret;
++
++	tmu = devm_kzalloc(dev, sizeof(*tmu), GFP_KERNEL);
++	if (!tmu)
++		return -ENOMEM;
++	tmu->base = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(tmu->base))
++		return PTR_ERR(tmu->base);
++	ret = of_property_read_u32(dev->of_node, "nexell,channel", &channel);
++	if (ret || channel > 1)
++		return -EINVAL;
++	clk = devm_clk_get_enabled(dev, "tmu_apbif");
++	if (IS_ERR(clk))
++		return dev_err_probe(dev, PTR_ERR(clk), "TMU clock unavailable\n");
++	tieoff = syscon_regmap_lookup_by_phandle(dev->of_node, "nexell,tieoff");
++	if (IS_ERR(tieoff))
++		return dev_err_probe(dev, PTR_ERR(tieoff), "TMU tieoff unavailable\n");
++
++	/* SENSING_START reads factory trim into the latch; it does not burn fuses. */
++	ret = regmap_update_bits(tieoff, TMU_FUSE_TIEOFF, BIT(channel), BIT(channel));
++	if (ret)
++		return ret;
++	ret = regmap_read_poll_timeout(tieoff, TMU_FUSE_TIEOFF, value,
++				       value & BIT(channel + 3), 1000, 10000);
++	if (ret && ret != -ETIMEDOUT)
++		return ret;
++	tmu->trim = readl(tmu->base + TMU_TRIMINFO) & 0xff;
++	/* Nexell's 4.4 TMU sensor configuration uses 45 for invalid trim. */
++	if (ret || tmu->trim < 16 || tmu->trim > 76) {
++		tmu->trim = 45;
++		dev_warn(dev, "factory trim unavailable; using nominal trim 45\n");
++	}
++
++	/* Polling only: disable local IRQ, emulation and hardware trip output. */
++	writel(0, tmu->base + TMU_INTEN);
++	writel(readl(tmu->base + TMU_INTSTAT), tmu->base + TMU_INTCLEAR);
++	writel(0, tmu->base + TMU_REMOTE_INTEN);
++	writel(readl(tmu->base + TMU_REMOTE_INTSTAT),
++	       tmu->base + TMU_REMOTE_INTCLEAR);
++	writel(readl(tmu->base + TMU_EMUL_CON) & ~BIT(0),
++	       tmu->base + TMU_EMUL_CON);
++	con = readl(tmu->base + TMU_CONTROL);
++	con &= ~(TMU_VREF | TMU_GAIN | TMU_FILTER | TMU_TRIP_EN | TMU_CORE_EN);
++	con |= FIELD_PREP(TMU_VREF, 16) | FIELD_PREP(TMU_GAIN, 5) |
++	       FIELD_PREP(TMU_FILTER, 4);
++	writel(con, tmu->base + TMU_CONTROL);
++	ret = readl_poll_timeout(tmu->base + TMU_STATUS, value,
++				 value & BIT(0), 1000, 100000);
++	if (ret)
++		return dev_err_probe(dev, ret, "TMU not ready\n");
++	writel(con | TMU_CORE_EN, tmu->base + TMU_CONTROL);
++	ret = devm_add_action_or_reset(dev, nexell_tmu_stop, tmu);
++	if (ret)
++		return ret;
++	/* Allow the first sample to complete before exposing it to readers. */
++	msleep(100);
++	tz = devm_thermal_of_zone_register(dev, 0, tmu, &nexell_tmu_ops);
++	if (IS_ERR(tz))
++		return dev_err_probe(dev, PTR_ERR(tz), "thermal zone unavailable\n");
++	ret = devm_thermal_add_hwmon_sysfs(dev, tz);
++	if (ret)
++		return ret;
++	dev_info(dev, "TMU%u temperature monitoring, trim=%d\n", channel, tmu->trim);
++	return 0;
++}
++
++static const struct of_device_id nexell_tmu_match[] = {
++	{ .compatible = "nexell,s5p6818-tmu" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, nexell_tmu_match);
++
++static struct platform_driver nexell_tmu_driver = {
++	.probe = nexell_tmu_probe,
++	.driver = {
++		.name = "nexell-s5p6818-tmu",
++		.of_match_table = nexell_tmu_match,
++	},
++};
++module_platform_driver(nexell_tmu_driver);
++
++MODULE_DESCRIPTION("Nexell S5P6818 internal temperature monitor");
++MODULE_LICENSE("GPL");
+--- /dev/null
++++ b/Documentation/devicetree/bindings/thermal/nexell,s5p6818-tmu.yaml
+@@ -0,0 +1,50 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/thermal/nexell,s5p6818-tmu.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: Nexell S5P6818 internal temperature monitor
++
++maintainers:
++  - liy <liygfg@gmail.com>
++
++description: |
++  Two TMU instances measure internal die temperature. The driver uses
++  factory one-point calibration at 25 degrees Celsius and polling.
++  nexell,tieoff references the shared four-byte trim sensing register at
++  0xc0011130. Channel 0 and 1 use SENSING_START bits 0 and 1 and
++  SENSING_DONE bits 3 and 4 respectively. This operation reads trim
++  latches and does not program nonvolatile fuses.
++
++$ref: thermal-sensor.yaml#
++
++properties:
++  compatible:
++    const: nexell,s5p6818-tmu
++  reg:
++    maxItems: 1
++  clocks:
++    maxItems: 1
++  clock-names:
++    const: tmu_apbif
++  nexell,tieoff:
++    $ref: /schemas/types.yaml#/definitions/phandle
++    description: Shared trim sensing syscon at 0xc0011130.
++  nexell,channel:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    enum: [0, 1]
++    description: TMU instance index.
++  '#thermal-sensor-cells':
++    const: 0
++
++required:
++  - compatible
++  - reg
++  - clocks
++  - clock-names
++  - nexell,tieoff
++  - nexell,channel
++  - '#thermal-sensor-cells'
++
++unevaluatedProperties: false

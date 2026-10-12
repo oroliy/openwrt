@@ -1,0 +1,10 @@
+#!/bin/sh
+# Board default: both TMUs, 30-second RRD samples in tmpfs (LuCI defaults).
+[ -f /etc/config/luci_statistics ] || exit 0
+uci -q batch <<'EOF'
+set luci_statistics.collectd_thermal=statistics
+set luci_statistics.collectd_thermal.enable='1'
+set luci_statistics.collectd_thermal.IgnoreSelected='0'
+delete luci_statistics.collectd_thermal.Device
+commit luci_statistics
+EOF
