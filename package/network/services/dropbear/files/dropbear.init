@@ -302,7 +302,13 @@ dropbear_instance()
 	local pid_file="/var/run/${NAME}.${1}.pid"
 
 	procd_open_instance
-	procd_set_param command "$PROG" -F -P "$pid_file"
+	# Keep the x6818 SSH control service within one cluster while the
+	# platform's cross-cluster userspace corruption remains unresolved.
+	if [ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = "nexell,x6818" ]; then
+		procd_set_param command /usr/bin/taskset -c 0-3 "$PROG" -F -P "$pid_file"
+	else
+		procd_set_param command "$PROG" -F -P "$pid_file"
+	fi
 	if [ -n "${iface}" ] ; then
 		# if ${iface} is non-empty then ${ndev} is non-empty too
 		procd_append_param command -l "${ndev}" -p "${Port}"
